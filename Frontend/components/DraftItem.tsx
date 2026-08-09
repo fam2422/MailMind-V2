@@ -3,7 +3,8 @@
 import * as React from 'react';
 import DraftDialog from './DraftDialog';
 import { Badge } from '@/components/ui/badge';
-import type { Draft } from './DraftList'; 
+import type { Draft } from './DraftList';
+import { Sparkles, FileText, CheckCircle2, XCircle, Clock } from 'lucide-react';
 
 type DraftItemProps = {
   draft: Draft;
@@ -20,25 +21,36 @@ export default function DraftItem({ draft, onUpdateDraft }: DraftItemProps) {
 
   const renderStatus = () => {
     if (draft.status === 'APPROVED') {
-      return <Badge className="bg-green-100 text-green-700 hover:bg-green-100">Sent</Badge>;
+      return (
+        <Badge className="bg-emerald-50 text-emerald-700 border border-emerald-200/80 hover:bg-emerald-50 text-xs font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1">
+          <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Sent
+        </Badge>
+      );
     }
     if (draft.status === 'REJECTED') {
-      return <Badge className="bg-red-100 text-red-700 hover:bg-red-100">Rejected</Badge>;
+      return (
+        <Badge className="bg-rose-50 text-rose-700 border border-rose-200/80 hover:bg-rose-50 text-xs font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1">
+          <XCircle className="w-3 h-3 text-rose-600" /> Rejected
+        </Badge>
+      );
     }
-    return <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100">Pending</Badge>;
+    return (
+      <Badge className="bg-amber-50 text-amber-700 border border-amber-200/80 hover:bg-amber-50 text-xs font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1">
+        <Clock className="w-3 h-3 text-amber-600" /> Pending Approval
+      </Badge>
+    );
   };
 
-  // 🌟 ฟังก์ชันสำหรับโชว์ Badge ความด่วน (Priority)
   const renderPriority = () => {
-    if (!draft.priority) return null; // ถ้าไม่มีข้อมูลให้ซ่อนไว้
+    if (!draft.priority) return null;
 
     switch (draft.priority) {
       case 'HIGH':
-        return <Badge className="bg-red-50 text-red-600 border border-red-200 hover:bg-red-50 text-xs font-medium">🔥 ด่วนมาก</Badge>;
+        return <Badge className="bg-rose-100 text-rose-700 border border-rose-200 hover:bg-rose-100 text-[10px] font-bold">🔥 ด่วนมาก</Badge>;
       case 'NORMAL':
-        return <Badge className="bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-50 text-xs font-medium">ปกติ</Badge>;
+        return <Badge className="bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-50 text-[10px] font-bold">ปกติ</Badge>;
       case 'LOW':
-        return <Badge className="bg-gray-100 text-gray-500 border border-gray-200 hover:bg-gray-100 text-xs font-medium">ทั่วไป</Badge>;
+        return <Badge className="bg-slate-100 text-slate-600 border border-slate-200 hover:bg-slate-100 text-[10px] font-bold">ทั่วไป</Badge>;
       default:
         return null;
     }
@@ -49,30 +61,41 @@ export default function DraftItem({ draft, onUpdateDraft }: DraftItemProps) {
       <div
         onClick={() => setOpen(true)}
         role="button"
-        className={`border rounded-lg p-4 transition-all cursor-pointer ${
-          draft.status !== 'PENDING' ? 'bg-gray-50 opacity-75' : 'bg-white hover:shadow-md'
+        tabIndex={0}
+        onKeyDown={(e) => e.key === 'Enter' && setOpen(true)}
+        className={`group p-4 sm:p-5 rounded-2xl border transition-all cursor-pointer ${
+          draft.status !== 'PENDING'
+            ? 'bg-slate-50/70 border-slate-200/60 opacity-80 hover:opacity-100 hover:bg-white hover:border-slate-300'
+            : 'bg-white border-indigo-100/90 shadow-2xs hover:border-indigo-300 hover:shadow-md hover:-translate-y-0.5'
         }`}
       >
         <div className="flex items-start justify-between gap-4">
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 mb-1">
-              <span className={`inline-block h-2 w-2 rounded-full ${draft.status === 'PENDING' ? 'bg-blue-600' : 'bg-gray-400'}`} />
-              <h3 className={`text-base mb-2 truncate ${draft.status === 'PENDING' ? 'font-semibold text-gray-900' : 'font-medium text-gray-600'}`}>
-              Re: {draft.subject || 'ไม่มีหัวข้อ'}
-              </h3>
-              {/* 🌟 เรียกใช้ Priority Badge ตรงนี้ (ข้างๆ คำว่า AI Assistant) */}
-              {renderPriority()}
-            </div>
-            
-            
-            
-            <p className="text-sm text-gray-500 line-clamp-2">{draft.draftReply}</p>
+          
+          {/* Left Icon */}
+          <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 font-bold flex items-center justify-center text-sm shrink-0 border border-indigo-100 group-hover:scale-105 transition-transform">
+            <Sparkles className="w-5 h-5 text-indigo-600" />
           </div>
 
-          <div className="shrink-0 flex flex-col items-end gap-2 text-sm text-gray-500">
+          {/* Middle Info */}
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 mb-1 flex-wrap">
+              <span className={`text-sm truncate ${draft.status === 'PENDING' ? 'font-bold text-slate-900 group-hover:text-indigo-600 transition-colors' : 'font-medium text-slate-600'}`}>
+                Re: {draft.subject || 'ไม่มีหัวข้อ'}
+              </span>
+              {renderPriority()}
+            </div>
+
+            <p className="text-xs text-slate-500 line-clamp-2 leading-relaxed">
+              {draft.draftReply || 'ไม่มีข้อความตัวอย่าง'}
+            </p>
+          </div>
+
+          {/* Right Status */}
+          <div className="shrink-0 flex flex-col items-end gap-2 text-xs text-slate-400 font-medium">
             <span>{formatDate(draft.createdAt)}</span>
             {renderStatus()}
           </div>
+
         </div>
       </div>
 
@@ -84,4 +107,4 @@ export default function DraftItem({ draft, onUpdateDraft }: DraftItemProps) {
       />
     </>
   );
-}
+}

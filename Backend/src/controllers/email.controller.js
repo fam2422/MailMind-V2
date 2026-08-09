@@ -1,6 +1,21 @@
 const gmailService = require('../services/gmail.service'); // ดึง Service มาใช้งาน
 const { syncSingleUser } = require('../cron/emailWatcher');
 
+const isAuthError = (error) => {
+  if (!error) return false;
+  const msg = (error.message || '').toLowerCase();
+  return (
+    msg === 'unauthorized' ||
+    msg.includes('invalid_grant') ||
+    msg.includes('invalid credentials') ||
+    msg.includes('token has been expired') ||
+    msg.includes('invalid_request') ||
+    error.code === 401 ||
+    error.status === 401 ||
+    error.response?.status === 401
+  );
+};
+
 exports.getEmails = async (req, res) => {
   try {
     const { pageToken, pageSize = 10 } = req.query;
@@ -16,7 +31,7 @@ exports.getEmails = async (req, res) => {
     console.error('Error fetching emails:', error.message);
     
     // ดักจับ Error กรณีหลุด Auth
-    if (error.message === 'UNAUTHORIZED') {
+    if (isAuthError(error)) {
       return res.status(401).json({ error: 'ไม่พบการเชื่อมต่อกับ Google กรุณาล็อกอินใหม่' });
     }
     
@@ -39,7 +54,7 @@ exports.markAsRead = async (req, res) => {
     console.error('Error marking as read:', error.message);
     
     // ดักจับ Error กรณีหลุด Auth
-    if (error.message === 'UNAUTHORIZED') {
+    if (isAuthError(error)) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
     
@@ -60,7 +75,7 @@ exports.getThread = async (req, res) => {
 
   } catch (error) {
     // 🌟 ดักจับ Error ตามประเภทที่ Service โยนออกมา
-    if (error.message === 'UNAUTHORIZED') {
+    if (isAuthError(error)) {
       return res.status(401).json({ error: 'ไม่พบการเชื่อมต่อกับ Google' });
     }
     
@@ -94,7 +109,7 @@ exports.replyToThread = async (req, res) => {
   } catch (error) {
     console.error('Error sending direct reply:', error.message);
     
-    if (error.message === 'UNAUTHORIZED') {
+    if (isAuthError(error)) {
       return res.status(401).json({ error: 'ไม่พบการเชื่อมต่อกับ Google กรุณาล็อกอินใหม่' });
     }
     
@@ -111,7 +126,7 @@ exports.syncEmails = async (req, res) => {
     res.json({ success: true, message: 'ซิงค์อีเมลสำเร็จ!', ...result });
   } catch (error) {
     console.error('Error syncing emails:', error.message);
-    if (error.message === 'UNAUTHORIZED') {
+    if (isAuthError(error)) {
       return res.status(401).json({ error: 'ไม่พบการเชื่อมต่อกับ Google กรุณาล็อกอินใหม่' });
     }
     res.status(500).json({ error: 'เกิดข้อผิดพลาดในการซิงค์อีเมล' });

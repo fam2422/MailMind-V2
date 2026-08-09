@@ -4,6 +4,21 @@ const { oauth2Client } = require('../config/google');
 
 
 // Helper Functions
+const isAuthError = (error) => {
+  if (!error) return false;
+  const msg = (error.message || '').toLowerCase();
+  return (
+    msg === 'unauthorized' ||
+    msg.includes('invalid_grant') ||
+    msg.includes('invalid credentials') ||
+    msg.includes('token has been expired') ||
+    msg.includes('invalid_request') ||
+    error.code === 401 ||
+    error.status === 401 ||
+    error.response?.status === 401
+  );
+};
+
 const decodeBase64 = (data) => {
   if (!data) return '';
   const buff = Buffer.from(data, 'base64');
@@ -42,70 +57,76 @@ exports.getInboxEmails = async (userId, pageToken, pageSize = 10) => {
     throw new Error('UNAUTHORIZED'); // ส่ง Error ให้ Controller ไปจัดการ 401
   }
 
-  // 2. ตั้งค่า Token
-  oauth2Client.setCredentials({
-    refresh_token: user.refreshToken,
-    access_token: user.accessToken, 
-  });
-
-  const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
-
-  // 3. ดึงรายการ ID ของอีเมล
-  const listRes = await gmail.users.messages.list({
-    userId: 'me',
-    maxResults: parseInt(pageSize),
-    pageToken: pageToken,
-    // q: '-category:promotions -category:social' // กรองโฆษณาได้ตามเดิม
-  });
-
-  const messages = listRes.data.messages || [];
-  const nextPageToken = listRes.data.nextPageToken;
-
-  // 4. วนลูปนำ ID ไปดึงรายละเอียด
-  const emailDetailsPromises = messages.map(async (msg) => {
-    const msgRes = await gmail.users.messages.get({
-      userId: 'me',
-      id: msg.id,
-      format: 'metadata', 
-      metadataHeaders: ['Subject', 'From', 'Date'],
+  try {
+    // 2. ตั้งค่า Token
+    oauth2Client.setCredentials({
+      refresh_token: user.refreshToken,
+      access_token: user.accessToken, 
     });
 
-    const data = msgRes.data;
-    const headers = data.payload.headers;
+    const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
 
-    // แกะข้อมูล Header
-    const subject = headers.find((h) => h.name === 'Subject')?.value || '(ไม่มีหัวข้อ)';
-    const from = headers.find((h) => h.name === 'From')?.value || '(ไม่ทราบผู้ส่ง)';
-    const date = headers.find((h) => h.name === 'Date')?.value || new Date(parseInt(data.internalDate)).toISOString();
+    // 3. ดึงรายการ ID ของอีเมล
+    const listRes = await gmail.users.messages.list({
+      userId: 'me',
+      maxResults: parseInt(pageSize),
+      pageToken: pageToken,
+    });
 
-    // เช็คสถานะการอ่านและป้ายกำกับ
-    const labels = data.labelIds || [];
-    const isRead = !labels.includes('UNREAD');
-    
-    let status = '';
-    if (labels.includes('SENT')) status = 'Sent';
-    else if (labels.includes('DRAFT')) status = 'Draft';
+    const messages = listRes.data.messages || [];
+    const nextPageToken = listRes.data.nextPageToken;
 
+    // 4. วนลูปนำ ID ไปดึงรายละเอียด
+    const emailDetailsPromises = messages.map(async (msg) => {
+      const msgRes = await gmail.users.messages.get({
+        userId: 'me',
+        id: msg.id,
+        format: 'metadata', 
+        metadataHeaders: ['Subject', 'From', 'Date'],
+      });
+
+      const data = msgRes.data;
+      const headers = data.payload.headers;
+
+      // แกะข้อมูล Header
+      const subject = headers.find((h) => h.name === 'Subject')?.value || '(ไม่มีหัวข้อ)';
+      const from = headers.find((h) => h.name === 'From')?.value || '(ไม่ทราบผู้ส่ง)';
+      const date = headers.find((h) => h.name === 'Date')?.value || new Date(parseInt(data.internalDate)).toISOString();
+
+      // เช็คสถานะการอ่านและป้ายกำกับ
+      const labels = data.labelIds || [];
+      const isRead = !labels.includes('UNREAD');
+      
+      let status = '';
+      if (labels.includes('SENT')) status = 'Sent';
+      else if (labels.includes('DRAFT')) status = 'Draft';
+
+      return {
+        id: data.id,
+        threadId: data.threadId,
+        snippet: data.snippet,
+        isRead,
+        from,
+        subject,
+        date,
+        status,
+      };
+    });
+
+    const items = await Promise.all(emailDetailsPromises);
+
+    // ส่งข้อมูลกลับไปให้ Controller
     return {
-      id: data.id,
-      threadId: data.threadId,
-      snippet: data.snippet,
-      isRead,
-      from,
-      subject,
-      date,
-      status,
+      items,
+      nextPageToken,
+      hasMore: !!nextPageToken,
     };
-  });
-
-  const items = await Promise.all(emailDetailsPromises);
-
-  // ส่งข้อมูลกลับไปให้ Controller
-  return {
-    items,
-    nextPageToken,
-    hasMore: !!nextPageToken,
-  };
+  } catch (error) {
+    if (isAuthError(error)) {
+      throw new Error('UNAUTHORIZED');
+    }
+    throw error;
+  }
 };
 
 // ฟังก์ชันสำหรับเปลี่ยนสถานะอีเมลเป็นอ่านแล้ว

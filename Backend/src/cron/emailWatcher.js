@@ -159,6 +159,10 @@ const processUserEmails = async (user) => {
 
   } catch (userError) {
     console.error(`${logPrefix} [ERROR] Cycle failed:`, userError.message);
+    const msg = (userError?.message || '').toLowerCase();
+    if (msg.includes('invalid_grant') || msg.includes('invalid credentials') || msg.includes('token has been expired') || userError?.code === 401) {
+      throw new Error('UNAUTHORIZED');
+    }
   }
 };
 
@@ -174,7 +178,7 @@ const checkNewEmails = async () => {
   try {
     const users = await prisma.user.findMany({
       where: { refreshToken: { not: null } },
-      include: { setting: true, apiKeys: true }
+      include: { setting: true }
     });
 
     const tasks = users.map(user => limit(() => processUserEmails(user)));
@@ -195,13 +199,21 @@ const startCron = () => {
 };
 
 const syncSingleUser = async (userId) => {
-  const user = await prisma.user.findUnique({
+  let user = await prisma.user.findUnique({
     where: { id: userId },
-    include: { setting: true, apiKeys: true }
+    include: { setting: true }
   });
 
   if (!user || !user.refreshToken) {
     throw new Error('UNAUTHORIZED');
+  }
+
+  if (!user.setting) {
+    user.setting = await prisma.userSetting.upsert({
+      where: { userId: user.id },
+      update: {},
+      create: { userId: user.id },
+    });
   }
 
   await processUserEmails(user);

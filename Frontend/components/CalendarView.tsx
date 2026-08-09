@@ -7,8 +7,9 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
 import { cn } from '@/lib/utils'
-import { useAuth } from '@/provider/AuthProvider' // ✅ นำเข้า auth
-import type { CalendarEvent } from '@/lib/type' // ✅ นำเข้า type
+import { useAuth } from '@/provider/AuthProvider'
+import type { CalendarEvent } from '@/lib/type'
+import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, MapPin, ExternalLink, Clock } from 'lucide-react'
 
 export default function CalendarView() {
   const { logout } = useAuth()
@@ -19,7 +20,6 @@ export default function CalendarView() {
   const [events, setEvents] = React.useState<CalendarEvent[]>([])
   const [loading, setLoading] = React.useState(false)
 
-  // ✅ โหลด event จาก Backend แทน
   React.useEffect(() => {
     let isMounted = true
 
@@ -81,43 +81,50 @@ export default function CalendarView() {
     for (let i = 0; i < 7; i++) {
       formattedDate = format(day, 'd', { locale: th })
       const cloneDay = day
-      const hasEvent = events.some((ev) => isSameDay(new Date(ev.start || ev.end || ''), cloneDay))
+      const dayEvents = events.filter((ev) => {
+        const d = ev.start ? new Date(ev.start) : ev.end ? new Date(ev.end) : null
+        return d ? isSameDay(d, cloneDay) : false
+      })
+      const hasEvent = dayEvents.length > 0
 
       days.push(
         <div
           key={day.toISOString()}
           onClick={() => setSelectedDate(cloneDay)}
           className={cn(
-            'min-h-20 border bg-background/50 p-2 cursor-pointer transition hover:bg-muted/60 flex flex-col gap-1',
-            !isSameMonth(day, monthStart) && 'bg-muted/30 text-muted-foreground',
-            isSameDay(day, selectedDate) && 'ring-2 ring-primary ring-offset-2',
+            'min-h-[85px] border border-slate-100 p-2 cursor-pointer transition-all flex flex-col justify-between rounded-xl hover:bg-blue-50/50 hover:border-blue-200',
+            !isSameMonth(day, monthStart) && 'bg-slate-50/50 text-slate-300',
+            isSameDay(day, selectedDate) && 'bg-blue-50/80 border-blue-500 ring-2 ring-blue-500/20 shadow-xs',
           )}
         >
-          <div className="flex items-center justify-between gap-2">
-            <span className={cn('text-sm', isSameDay(day, today) && 'font-semibold text-primary')}>
+          <div className="flex items-center justify-between">
+            <span className={cn('text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center', 
+              isSameDay(day, today) 
+                ? 'bg-blue-600 text-white shadow-2xs' 
+                : isSameMonth(day, monthStart) ? 'text-slate-700' : 'text-slate-400'
+            )}>
               {formattedDate}
             </span>
-            {hasEvent ? <span className="h-2 w-2 rounded-full bg-emerald-500" aria-hidden /> : null}
+            {hasEvent && <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" aria-hidden />}
           </div>
 
-          <div className="flex flex-col gap-1">
-            {events
-              .filter((ev) => {
-                const d = ev.start ? new Date(ev.start) : ev.end ? new Date(ev.end) : null
-                return d ? isSameDay(d, cloneDay) : false
-              })
-              .slice(0, 2)
-              .map((ev) => (
-                <div key={ev.id} className="truncate rounded bg-emerald-50 text-emerald-700 px-1.5 py-0.5 text-[10px] font-medium">
-                  {ev.summary}
-                </div>
-              ))}
+          <div className="flex flex-col gap-1 mt-1">
+            {dayEvents.slice(0, 2).map((ev) => (
+              <div key={ev.id} className="truncate rounded-lg bg-emerald-50 border border-emerald-100 text-emerald-700 px-1.5 py-0.5 text-[10px] font-bold">
+                {ev.summary}
+              </div>
+            ))}
+            {dayEvents.length > 2 && (
+              <span className="text-[9px] font-bold text-slate-400 pl-1">
+                +{dayEvents.length - 2} นัดหมาย
+              </span>
+            )}
           </div>
         </div>
       )
       day = addDays(day, 1)
     }
-    rows.push(<div className="grid grid-cols-7" key={day.toISOString()}>{days}</div>)
+    rows.push(<div className="grid grid-cols-7 gap-1" key={day.toISOString()}>{days}</div>)
     days = []
   }
 
@@ -133,61 +140,90 @@ export default function CalendarView() {
   }
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[1.3fr,0.7fr]">
-      {/* ซ้าย: calendar */}
-      <Card className="p-4 lg:p-6">
+    <div className="grid gap-6 lg:grid-cols-[1.4fr,0.6fr]">
+      {/* Left: Calendar Grid Card */}
+      <div className="bg-white border border-slate-200/80 rounded-2xl p-4 lg:p-6 shadow-2xs">
         <div className="flex flex-col gap-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-100">
             <div>
-              <h2 className="text-xl font-semibold leading-tight">
+              <h2 className="text-xl font-black tracking-tight text-slate-900 capitalize">
                 {format(currentMonth, 'MMMM yyyy', { locale: th })}
               </h2>
             </div>
             <div className="flex items-center gap-2">
-              <Button variant="outline" size="icon" onClick={prevMonth}>←</Button>
-              <Button variant="outline" size="icon" onClick={nextMonth}>→</Button>
-              <Button onClick={goToday} variant="default">Today</Button>
+              <Button variant="outline" size="sm" onClick={prevMonth} className="rounded-xl p-2 h-9 w-9">
+                <ChevronLeft className="w-4 h-4" />
+              </Button>
+              <Button variant="outline" size="sm" onClick={nextMonth} className="rounded-xl p-2 h-9 w-9">
+                <ChevronRight className="w-4 h-4" />
+              </Button>
+              <Button onClick={goToday} size="sm" className="gradient-bg text-white font-bold rounded-xl text-xs shadow-2xs">
+                วันนี้ (Today)
+              </Button>
             </div>
           </div>
 
-          <div className="grid grid-cols-7 text-center text-xs font-medium text-muted-foreground">
+          <div className="grid grid-cols-7 text-center text-xs font-bold uppercase tracking-wider text-slate-400 py-1">
             <div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div>
-            <div className="text-sky-600">Sat</div><div className="text-rose-600">Sun</div>
+            <div className="text-blue-600">Sat</div><div className="text-rose-500">Sun</div>
           </div>
 
-          <div className="grid gap-0">{rows}</div>
+          <div className="grid gap-1">{rows}</div>
 
-          {loading && <p className="text-xs text-muted-foreground">กำลังโหลดเหตุการณ์จาก Google…</p>}
+          {loading && <p className="text-xs text-slate-400 animate-pulse pt-2">กำลังซิงค์นัดหมายล่าสุดจาก Google Calendar…</p>}
         </div>
-      </Card>
+      </div>
 
-      {/* ขวา: event list */}
-      <Card className="p-4 lg:p-6 flex flex-col gap-4">
+      {/* Right: Selected Day Events Card */}
+      <div className="bg-white border border-slate-200/80 rounded-2xl p-5 lg:p-6 flex flex-col gap-4 shadow-2xs">
         <div>
-          <p className="text-xs text-muted-foreground">Events on</p>
-          <h3 className="text-lg font-semibold">{format(selectedDate, 'd MMMM yyyy', { locale: th })}</h3>
+          <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Events Details</span>
+          <h3 className="text-lg font-black text-slate-900 mt-0.5">
+            {format(selectedDate, 'd MMMM yyyy', { locale: th })}
+          </h3>
         </div>
-        <Separator />
+        <Separator className="bg-slate-100" />
 
         {selectedEvents.length === 0 ? (
-          <p className="text-sm text-muted-foreground">ไม่มีนัดหมายวันนี้</p>
+          <div className="py-12 text-center space-y-2">
+            <div className="w-10 h-10 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center mx-auto text-lg">
+              📅
+            </div>
+            <p className="text-xs font-semibold text-slate-500">ไม่มีนัดหมายในวันนี้</p>
+          </div>
         ) : (
           <div className="space-y-3">
             {selectedEvents.map((ev) => (
-              <div key={ev.id} className="rounded-lg border bg-muted/30 p-3 space-y-1">
-                <p className="font-medium text-sm">{ev.summary}</p>
-                <p className="text-xs text-muted-foreground">{fmtDateTime(ev.start)} – {fmtDateTime(ev.end)}</p>
-                {ev.location && <p className="text-xs text-muted-foreground">📍 {ev.location}</p>}
+              <div key={ev.id} className="rounded-2xl border border-emerald-100 bg-emerald-50/40 p-4 space-y-2 card-hover">
+                <p className="font-bold text-sm text-slate-900">{ev.summary}</p>
+                
+                <div className="flex items-center gap-1.5 text-xs text-slate-500 font-medium">
+                  <Clock className="w-3.5 h-3.5 text-slate-400" />
+                  <span>{fmtDateTime(ev.start)} – {fmtDateTime(ev.end)}</span>
+                </div>
+
+                {ev.location && (
+                  <div className="flex items-center gap-1.5 text-xs text-slate-500 font-medium truncate">
+                    <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                    <span className="truncate">{ev.location}</span>
+                  </div>
+                )}
+
                 {ev.htmlLink && (
-                  <a href={ev.htmlLink} target="_blank" rel="noreferrer" className="text-xs text-primary hover:underline">
-                    เปิดใน Google Calendar
+                  <a 
+                    href={ev.htmlLink} 
+                    target="_blank" 
+                    rel="noreferrer" 
+                    className="inline-flex items-center gap-1 text-xs font-bold text-blue-600 hover:text-blue-700 hover:underline pt-1"
+                  >
+                    เปิดใน Google Calendar <ExternalLink className="w-3 h-3" />
                   </a>
                 )}
               </div>
             ))}
           </div>
         )}
-      </Card>
+      </div>
     </div>
   )
-}
+}

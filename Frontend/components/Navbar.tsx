@@ -1,10 +1,12 @@
 "use client";
 
 import Image from 'next/image';
-import Link from 'next/link'; // 🌟 นำเข้า Link สำหรับปุ่ม Login
+import Link from 'next/link';
 import { useAuth } from '@/provider/AuthProvider';
 import { useState, useEffect } from 'react';
 import { usePathname } from 'next/navigation';
+import { Sparkles, LogOut, Bot, ShieldCheck } from 'lucide-react';
+
 export default function Navbar() {
   const { user, logout } = useAuth();
   const pathname = usePathname();
@@ -39,13 +41,7 @@ export default function Navbar() {
     if (user) fetchStatus();
   }, [user, API_BASE]);
 
-if (pathname === '/login') {
-    return null;
-  }
-if (pathname === '/privacy') {
-    return null;
-  }
-if (pathname === '/terms') {
+  if (pathname === '/login' || pathname === '/privacy' || pathname === '/terms') {
     return null;
   }
 
@@ -80,80 +76,104 @@ if (pathname === '/terms') {
   };
 
   return (
-    <nav className="bg-white shadow-sm border-b">
-      <div className="container mx-auto px-6 max-w-7xl">
+    <header className="sticky top-0 z-50 glass-nav shadow-xs transition-all">
+      <div className="container mx-auto px-4 sm:px-6 max-w-7xl">
         <div className="flex items-center justify-between h-16">
           
-          <div className="flex items-center gap-2">
-            <Link href="/" className="text-xl font-bold text-gray-900 hover:text-blue-600 transition-colors">
-              MailMind
+          {/* Logo & Brand */}
+          <div className="flex items-center gap-3">
+            <Link href="/" className="flex items-center gap-2.5 group">
+              <div className="w-9 h-9 rounded-xl gradient-bg flex items-center justify-center text-white shadow-md shadow-blue-500/20 group-hover:scale-105 transition-transform">
+                <Sparkles className="w-5 h-5" />
+              </div>
+              <span className="text-xl font-extrabold tracking-tight text-slate-900 group-hover:text-blue-600 transition-colors">
+                Mail<span className="gradient-text">Mind</span>
+              </span>
             </Link>
           </div>
 
-          <div className="flex items-center gap-4 sm:gap-6">
+          {/* User Controls / Auth Buttons */}
+          <div className="flex items-center gap-3 sm:gap-5">
             
             {user ? (
               <>
-                <div className="flex items-center gap-2 border-r border-gray-200 pr-4 sm:pr-6 sm:flex">
-                  <span className={`text-sm font-medium transition-colors ${
-                    isAiActive === null ? 'text-gray-300' : isAiActive ? 'text-green-600' : 'text-gray-400'
+                {/* AI Status Pill Button */}
+                <div className="flex items-center gap-2.5 bg-slate-100/80 px-3 py-1.5 rounded-full border border-slate-200/80 shadow-2xs">
+                  <div className="relative flex items-center justify-center">
+                    {isAiActive && (
+                      <span className="absolute inline-flex h-3 w-3 rounded-full bg-emerald-400 opacity-75 animate-ping" />
+                    )}
+                    <span className={`relative inline-block h-2.5 w-2.5 rounded-full ${
+                      isAiActive === null ? 'bg-slate-300' : isAiActive ? 'bg-emerald-500' : 'bg-amber-400'
+                    }`} />
+                  </div>
+
+                  <span className={`text-xs font-semibold tracking-wide ${
+                    isAiActive === null ? 'text-slate-400' : isAiActive ? 'text-emerald-700' : 'text-slate-500'
                   }`}>
-                    {isAiActive === null ? 'Checking...' : isAiActive ? 'AI Active' : 'AI Paused'}
+                    {isAiActive === null ? 'Checking...' : isAiActive ? 'AI Auto-Reply On' : 'AI Paused'}
                   </span>
+
                   <button
                     onClick={handleToggleCron}
                     disabled={isToggling || isAiActive === null}
-                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${
-                      isAiActive ? 'bg-green-500' : 'bg-gray-300'
-                    } ${(isToggling || isAiActive === null) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none ${
+                      isAiActive ? 'bg-emerald-500' : 'bg-slate-300'
+                    } ${(isToggling || isAiActive === null) ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
                     title={isAiActive ? "ปิดระบบตอบรับอัตโนมัติ" : "เปิดระบบตอบรับอัตโนมัติ"}
                   >
                     <span
-                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                        isAiActive ? 'translate-x-6' : 'translate-x-1'
-                      } shadow-sm`}
+                      className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
+                        isAiActive ? 'translate-x-4.5' : 'translate-x-1'
+                      } shadow-xs`}
                     />
                   </button>
                 </div>
 
-                {/* โปรไฟล์ User */}
-                <div className="text-right hidden sm:block">
-                  <p className="text-sm font-medium text-gray-900">{user.name}</p>
-                  <p className="text-xs text-gray-500">{user.email}</p>
+                {/* Profile Widget */}
+                <div className="flex items-center gap-3 pl-2 border-l border-slate-200">
+                  {user.picture ? (
+                    <Image
+                      src={user.picture}
+                      alt={user.name || 'User'}
+                      width={36}
+                      height={36}
+                      className="rounded-full object-cover ring-2 ring-blue-500/20 shadow-xs"
+                    />
+                  ) : (
+                    <div className="w-9 h-9 rounded-full bg-blue-100 text-blue-700 font-bold flex items-center justify-center text-sm ring-2 ring-blue-500/20">
+                      {(user.name || user.email || 'U').charAt(0).toUpperCase()}
+                    </div>
+                  )}
+
+                  <div className="text-left hidden md:block leading-tight">
+                    <p className="text-xs font-bold text-slate-800 truncate max-w-[130px]">{user.name}</p>
+                    <p className="text-[11px] text-slate-500 truncate max-w-[130px]">{user.email}</p>
+                  </div>
+
+                  {/* Sign Out Button */}
+                  <button
+                    onClick={logout}
+                    className="p-2 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all"
+                    title="ออกจากระบบ"
+                  >
+                    <LogOut className="w-4 h-4" />
+                  </button>
                 </div>
-
-                {user.picture && (
-                  <Image
-                    src={user.picture}
-                    alt={user.name || 'User'}
-                    width={40}
-                    height={40}
-                    className="rounded-full object-cover shadow-sm border border-gray-100"
-                  />
-                )}
-
-                {/* ปุ่ม Sign Out */}
-                <button
-                  onClick={logout}
-                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
-                >
-                  Sign Out
-                </button>
               </>
             ) : (
-              <>
-                <Link 
-                  href="/login" 
-                  className="px-5 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
-                >
-                  เข้าสู่ระบบ (Login)
-                </Link>
-              </>
+              <Link 
+                href="/login" 
+                className="px-5 py-2 text-sm font-semibold text-white gradient-bg hover:opacity-95 rounded-xl transition-all shadow-md shadow-blue-500/20 flex items-center gap-2"
+              >
+                <Bot className="w-4 h-4" />
+                เข้าสู่ระบบ (Login)
+              </Link>
             )}
             
           </div>
         </div>
       </div>
-    </nav>
+    </header>
   );
-}
+}
