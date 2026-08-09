@@ -16,7 +16,6 @@ model User {
   refreshToken String?       @db.Text
   
   setting      UserSetting?
-  apiKeys      ApiKey[]
   drafts       Draft[]     
   summaries    Summary[]
   
@@ -53,20 +52,6 @@ model UserSetting {
   updatedAt         DateTime  @updatedAt
 }
 
-model ApiKey {
-  id           String   @id @default(cuid())
-  userId       String
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  provider     String 
-  encryptedKey String
-  iv           String
-  authTag      String
-  
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-
-  @@unique([userId, provider])
-}
 
 model Draft {
   id            String       @id @default(cuid())

@@ -6,10 +6,12 @@ const {
   getEmails, 
   markAsRead, 
   getThread, 
-  replyToThread
+  replyToThread,
+  syncEmails
 } = require('../controllers/email.controller');
 
 router.get('/', verifyToken, getEmails);
+router.post('/sync', verifyToken, syncEmails);
 router.post('/mark-read', verifyToken, markAsRead);
 router.get('/:threadId', verifyToken, getThread);
 router.post('/threads/:threadId', verifyToken, replyToThread);

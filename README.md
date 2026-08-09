@@ -1,209 +1,220 @@
-# MailMind - Smart Email Assistant with Auto-Scheduling
+# MailMind - Smart Email Assistant with Local AI Auto-Scheduling
 
-"MailMind is an intelligent email assistant web application designed to streamline appointment scheduling. By integrating directly with Gmail and Google Calendar, it utilizes Generative AI to analyze incoming emails, detect appointment requests, check calendar availability, and automatically generate smart draft replies (Accept or Reschedule). It is developed with a **Next.js** frontend and an **Express.js** backend, powered by the **Prisma** ORM and a **PostgreSQL** database."
+"MailMind is an intelligent, privacy-focused email assistant web application designed to streamline appointment scheduling. By integrating directly with Gmail and Google Calendar, it utilizes **100% Local Generative AI (`llama3.1:8b` via Ollama)** to analyze incoming emails, detect appointment requests, check calendar availability, and automatically generate smart plain-text draft replies (Accept or Reschedule). Developed with a **Next.js** frontend and an **Express.js** backend, powered by **Prisma ORM** and a **PostgreSQL** database."
 
 ## Table of Contents
 
-  - [Features](https://www.google.com/search?q=%23features)
-  - [Tech Stack](https://www.google.com/search?q=%23tech-stack)
-  - [External APIs Used](https://www.google.com/search?q=%23external-apis-used)
-  - [Prerequisites](https://www.google.com/search?q=%23prerequisites)
-  - [Security & Rate Limiting](https://www.google.com/search?q=%23security--rate-limiting)
-  - [Installation](https://www.google.com/search?q=%23installation)
-  - [Environment Variables](https://www.google.com/search?q=%23environment-variables)
-  - [Database Setup](https://www.google.com/search?q=%23database-setup)
-  - [Running the Application](https://www.google.com/search?q=%23running-the-application)
-  - [API Endpoints](https://www.google.com/search?q=%23api-endpoints)
-  - [License](https://www.google.com/search?q=%23license)
-  - [Contact](https://www.google.com/search?q=%23contact)
+- [Features](#features)
+- [Tech Stack](#tech-stack)
+- [Local AI Setup](#local-ai-setup)
+- [External APIs Used](#external-apis-used)
+- [Prerequisites](#prerequisites)
+- [Security & Privacy](#security--privacy)
+- [Installation](#installation)
+- [Environment Variables](#environment-variables)
+- [Database Setup](#database-setup)
+- [Running the Application](#running-the-application)
+- [API Endpoints](#api-endpoints)
+- [License](#license)
+- [Contact](#contact)
+
+---
 
 ## Features
 
-  - **Google Integration:** Seamless login via Google OAuth 2.0 with scopes for Gmail and Google Calendar.
-  - **Automated Email Fetching:** Background cron jobs to automatically fetch and filter unread emails based on appointment keywords.
-  - **AI-Powered Data Extraction:** Uses Generative AI to extract appointment details (Date, Time, Location, Subject) from email threads.
-  - **Smart Auto-Drafting:** Automatically generates draft replies to accept appointments if the calendar is free, or proposes new times if there is a calendar conflict.
-  - **Multi-AI Provider Support:** Flexibility to switch between Google Gemini, OpenAI, Claude, OpenRouter, and IntelSphere.
-  - **Calendar Sync:** Automatically creates events in Google Calendar upon confirming an appointment draft.
-  - **AI Schedule Summary:** Generates daily or weekly human-readable summaries of upcoming calendar events.
-  - **Settings Management:** Users can customize working hours, default AI models, and email signature tones.
+- **Google Integration:** Seamless authentication via Google OAuth 2.0 with scopes for Gmail and Google Calendar.
+- **100% Local AI Processing:** Powered by **Ollama (`llama3.1:8b`)**, ensuring complete privacy without sending email data to third-party cloud AI APIs.
+- **Automated Email Fetching:** Background cron job (every 10 minutes) to automatically fetch unread emails and filter appointment requests.
+- **AI-Powered Data Extraction:** Extracts appointment details (Date, Time, Location, Subject, Priority) and handles Thai Buddhist Era (B.E.) to Gregorian year conversion with Thailand (+07:00) timezone offset.
+- **Smart Auto-Drafting:** Generates natural Thai plain-text email replies to accept appointments or propose new times based on user working hours and calendar conflicts.
+- **Calendar & Gmail Auto-Sync:** Upon user approval, sends the email reply via Gmail API and automatically creates the event in Google Calendar.
+- **Human-in-the-Loop Workflow:** All generated drafts remain in `PENDING` status for user review. Rejecting a draft permanently purges it from the database.
+- **AI Schedule Summary:** Generates daily, weekly, or monthly schedule summaries.
+
+---
 
 ## Tech Stack
 
-  - **Frontend:** Next.js, Tailwind CSS
-  - **Backend:** Express.js, Node.js
-  - **ORM:** Prisma
-  - **Database:** PostgreSQL
-  - **Background Jobs:** node-cron
-  - **Authentication:** Google OAuth 2.0 & JSON Web Tokens (JWT)
-  - **Package Manager:** pnpm
+- **Frontend:** Next.js (App Router), React 19, Tailwind CSS, Lucide Icons
+- **Backend:** Express.js, Node.js
+- **Local AI Engine:** Ollama (`llama3.1:8b` via OpenAI Compatible API)
+- **ORM:** Prisma
+- **Database:** PostgreSQL
+- **Background Jobs:** `node-cron`, `p-limit`
+- **Authentication:** Google OAuth 2.0 & JSON Web Tokens (JWT)
+- **Package Manager:** pnpm
+
+---
+
+## Local AI Setup
+
+MailMind runs on Ollama for local LLM inference.
+
+1. Download and install Ollama from [ollama.com](https://ollama.com).
+2. Pull the recommended model:
+   ```bash
+   ollama pull llama3.1:8b
+   ```
+3. Ensure the Ollama server is running locally at `http://localhost:11434`.
+
+---
 
 ## External APIs Used
 
 **Google Cloud APIs:**
+- Google OAuth 2.0 API
+- Gmail API (`gmail.readonly`, `gmail.send`)
+- Google Calendar API (`calendar.events`)
 
-  - Google OAuth 2.0 API
-  - Gmail API
-  - Google Calendar API
-
-**Generative AI APIs:**
-
-  - Google Gemini API
-  - OpenAI API
-  - Anthropic Claude API
-  - OpenRouter API
-  - IntelSphere API
+---
 
 ## Prerequisites
 
-  - Node.js v18+
-  - pnpm (recommended) or npm
-  - PostgreSQL database instance
-  - Google Cloud Console Account (for Client ID and Client Secret)
-  - API Keys for your preferred AI providers (Gemini, OpenAI, etc.)
+- Node.js v18+
+- pnpm (recommended) or npm
+- PostgreSQL database (or Docker Compose)
+- Ollama installed with `llama3.1:8b`
+- Google Cloud Console Credentials (Client ID & Client Secret)
 
-## Security & Rate Limiting
+---
 
-  - **API Key Encryption:** All user-provided AI API keys are strictly encrypted using `AES-256-GCM` before being stored in the database.
-  - **Token Management:** Google Access Tokens and Refresh Tokens are securely managed to prevent unauthorized access.
-  - **Rate Limit Optimization:** Implements local keyword pre-filtering to avoid hitting AI provider rate limits unnecessarily.
+## Security & Privacy
+
+- **100% Local AI:** No email contents or personal schedule data leave your environment.
+- **Token Management:** Google Access Tokens and Refresh Tokens are securely managed.
+- **Keywords Pre-filtering:** Local keyword filtering reduces CPU/GPU processing overhead.
+
+---
 
 ## Installation
 
-Clone the repository
+1. **Clone the repository:**
+   ```bash
+   git clone https://github.com/your-username/MailMind.git
+   cd MailMind
+   ```
 
-```bash
-git clone https://github.com/your-username/MailMind.git
-cd MailMind
-```
-Run PostgreSQL docker compose
+2. **Start PostgreSQL via Docker Compose:**
+   ```bash
+   docker compose up -d --build
+   ```
 
-```bash
-docker compose up -d --build
-```
+3. **Install Backend dependencies:**
+   ```bash
+   cd Backend
+   pnpm install
+   ```
 
-Install backend dependencies
+4. **Install Frontend dependencies:**
+   ```bash
+   cd ../Frontend
+   pnpm install
+   ```
 
-```bash
-cd backend
-pnpm install
-```
-
-Install frontend dependencies
-
-```bash
-cd ../frontend
-pnpm install
-```
-
-
+---
 
 ## Environment Variables
 
-Create a `.env` file in the `backend` directory with the following:
+### Backend (`Backend/.env`)
 
 ```env
-# Server
-PORT=3000
-
-# Database
-DATABASE_URL="postgresql://<user>:<password>@<host>:<port>/<database>?schema=public"
+PORT=5000
+FRONTEND_URL=http://localhost:3000
 
 # Google OAuth Credentials
 GOOGLE_CLIENT_ID=your_google_client_id
 GOOGLE_CLIENT_SECRET=your_google_client_secret
-GOOGLE_REDIRECT_URI=http://localhost:3000/api/auth/google/callback
+GOOGLE_REDIRECT_URI=http://localhost:5000/api/auth/google/callback
 
-# Security / Encryption
-JWT_SECRET=your_super_secret_jwt_key
-ENCRYPTION_KEY=your_32_byte_aes_256_secret_key
+# Security Keys
+JWT_SECRET=your_jwt_secret_key
+ENCRYPTION_SECRET=your_32_byte_aes_256_secret_key
+
+# PostgreSQL Connection
+DATABASE_URL="postgresql://postgres:2422@localhost:5432/mail-mind-v2?schema=public"
+
+# Local AI (Ollama) Settings
+LOCAL_AI_BASE_URL="http://localhost:11434/v1"
+LOCAL_AI_MODEL="llama3.1:8b"
 ```
 
-Create a `.env.local` file in the `frontend` directory:
+### Frontend (`Frontend/.env.local`)
 
 ```env
-NEXT_PUBLIC_API_URL=http://localhost:3000/api
+NEXT_PUBLIC_BACKEND_URL=http://localhost:5000
 ```
+
+---
 
 ## Database Setup
 
-Navigate to the backend directory
-
+Navigate to the `Backend` directory:
 ```bash
-cd backend
+cd Backend
 ```
 
-Generate Prisma Client
-
+Generate Prisma Client & Run migrations:
 ```bash
 npx prisma generate
-```
-
-Run migrations to create tables
-
-```bash
 npx prisma migrate dev --name init
 ```
 
+---
+
 ## Running the Application
 
-Start the backend
+1. **Start Ollama Server:**
+   ```bash
+   ollama serve
+   ```
 
-```bash
-cd backend
-pnpm run dev # starts Express server on http://localhost:3000
-```
+2. **Start Backend Server:**
+   ```bash
+   cd Backend
+   pnpm run dev # Starts Express server on http://localhost:5000
+   ```
 
-Start the frontend
+3. **Start Frontend Web App:**
+   ```bash
+   cd Frontend
+   pnpm run dev # Starts Next.js on http://localhost:3000
+   ```
 
-```bash
-cd frontend
-pnpm run dev # starts Next.js on http://localhost:3001
-```
+---
 
 ## API Endpoints
 
 ### Authentication
+- `GET /api/auth/google` – Redirect to Google OAuth consent screen.
+- `GET /api/auth/google/callback` – Google OAuth callback handler.
+- `POST /api/auth/logout` – Clear user session and cookies.
+- `GET /api/auth/me` – Get current logged-in user profile.
 
-  - `GET /api/auth/google` – Redirect to Google OAuth consent screen.
-  - `GET /api/auth/google/callback` – Google OAuth callback handler.
-  - `POST /api/auth/logout` – Clear user session and cookies.
-  - `GET /api/auth/me` – Get current logged-in user profile.
+### Settings & Local AI
+- `GET /api/settings` – Get user application settings.
+- `PUT /api/settings` – Update user settings (working hours, tone, signature).
+- `POST /api/settings/test-key` – Test connection to Local AI Server (Ollama).
 
-### Settings & API Keys
+### Emails & Drafts
+- `GET /api/emails` – Fetch recent emails from Gmail.
+- `GET /api/drafts` – List pending AI-generated drafts (`PENDING`).
+- `POST /api/drafts/:id/send` – Approve draft, send email via Gmail API, and insert event to Google Calendar.
+- `DELETE /api/drafts/:id` – Reject and permanently delete a draft from the database.
 
-  - `GET /api/settings` – Get user's application settings (working hours, default AI).
-  - `PUT /api/settings` – Update user settings.
-  - `GET /api/settings/keys` – List user's connected AI API keys (masked).
-  - `POST /api/settings/keys` – Add and encrypt a new AI API key.
-  - `DELETE /api/settings/keys/:provider` – Remove an API key.
+### Calendar & Summaries
+- `GET /api/calendar/events` – List upcoming events from Google Calendar.
+- `GET /api/calendar/summary` – Generate AI-powered daily, weekly, or monthly schedule summaries.
 
-### Emails & Processing
-
-  - `GET /api/emails` – Fetch recent emails from Gmail.
-  - `POST /api/emails/sync` – Manually trigger the email fetching and AI analysis process.
-  - `GET /api/emails/:messageId` – Get full email thread details.
-
-### Drafts Management
-
-  - `GET /api/drafts` – List all pending AI-generated drafts.
-  - `GET /api/drafts/:id` – Get specific draft details.
-  - `PUT /api/drafts/:id` – Edit the content of an AI-generated draft.
-  - `POST /api/drafts/:id/send` – Approve draft, send via Gmail API, and auto-insert to Google Calendar.
-  - `DELETE /api/drafts/:id` – Discard a draft.
-
-### Calendar & Summary
-
-  - `GET /api/calendar/events` – List upcoming events from Google Calendar.
-  - `GET /api/calendar/summary` – Generate an AI-powered summary of the weekly schedule.
+---
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE.md file for details.
+This project is licensed under the MIT License.
+
+---
 
 ## Contact
 
 For questions or feedback, reach out to the development team:
-
-  - **Email:** yodsanon.d@kkumail.com
-  - **Email:** chetsada.k@kkumail.com
+- **Email:** adithep.ma@kkumail.com
+- **Email:** chetsada.k@kkumail.com

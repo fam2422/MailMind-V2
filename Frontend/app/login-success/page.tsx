@@ -11,7 +11,7 @@ function SuccessHandler() {
     const token = searchParams.get('token');
     if (token) {
       localStorage.setItem('app_token', token);
-      window.location.href = "/setup";
+      window.location.href = "/inbox";
     } else {
       router.replace('/?error=invalid_token');
     }

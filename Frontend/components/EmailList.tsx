@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { RefreshCw, CheckCircle2 } from 'lucide-react';
 import EmailItem from './EmailItem';
 import { useAuth } from '@/provider/AuthProvider'; // ✅ ใช้ Hook เพื่อเช็คการล็อกเอาต์เมื่อ Token พัง
 
@@ -27,6 +28,9 @@ export default function EmailList() {
   
   const [emails, setEmails] = useState<Email[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [syncMessage, setSyncMessage] = useState<string | null>(null);
+  const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null);
   const [error, setError] = useState<string | null>(null);
   
   // ✅ ระบบจัดการหน้า (Pagination) แบบเก็บประวัติ เพื่อให้กด Previous ได้ถูกต้อง
@@ -80,6 +84,51 @@ export default function EmailList() {
     }
   }, [logout]);
 
+  // ฟังก์ชันซิงค์อีเมลใหม่ด้วย Backend + AI
+  const handleSync = async () => {
+    try {
+      setIsSyncing(true);
+      setSyncMessage(null);
+
+      const appToken = localStorage.getItem('app_token');
+      if (!appToken) {
+        logout();
+        return;
+      }
+
+      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/emails/sync`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${appToken}` },
+      });
+
+      if (response.status === 401) {
+        logout();
+        return;
+      }
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'เกิดข้อผิดพลาดในการซิงค์อีเมล');
+      }
+
+      setLastSyncedAt(new Date());
+      setSyncMessage('ซิงค์อีเมลสำเร็จ!');
+
+      // โหลดรายการอีเมลใหม่
+      await fetchEmails(pageHistory[currentIndex]);
+
+      setTimeout(() => {
+        setSyncMessage(null);
+      }, 4000);
+
+    } catch (err: Error | unknown) {
+      const message = err instanceof Error ? err.message : 'เกิดข้อผิดพลาดในการซิงค์อีเมล';
+      setSyncMessage(`เกิดข้อผิดพลาด: ${message}`);
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
   // โหลดหน้าแรกสุดเมื่อเข้าเว็บ
   useEffect(() => {
     fetchEmails(pageHistory[currentIndex]);
@@ -107,7 +156,7 @@ export default function EmailList() {
     }
   };
 
-  if (loading) {
+  if (loading && emails.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-12 gap-4">
         <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600"></div>
@@ -116,7 +165,7 @@ export default function EmailList() {
     );
   }
 
-  if (error) {
+  if (error && emails.length === 0) {
     return (
       <div className="bg-red-50 border border-red-200 rounded-lg p-6">
         <h3 className="text-lg font-semibold text-red-900 mb-2">เกิดข้อผิดพลาด</h3>
@@ -131,43 +180,75 @@ export default function EmailList() {
     );
   }
 
-  if (emails.length === 0) {
-    return (
-      <div className="bg-gray-50 border border-gray-200 rounded-lg p-12 text-center text-gray-500">
-        ไม่มีอีเมลในกล่องข้อความของคุณ
-      </div>
-    );
-  }
-
   return (
     <div className="max-w-4xl mx-auto">
-      <div className="space-y-3">
-        {emails.map((email) => (
-          <EmailItem key={email.id} email={email} onEmailUpdate={handleEmailUpdate} />
-        ))}
+      {/* Header Bar สำหรับซิงค์อีเมล */}
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-6 pb-4 border-b border-gray-100">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={handleSync}
+            disabled={isSyncing || loading}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg text-sm transition-all shadow-xs disabled:opacity-50 disabled:cursor-not-allowed"
+            title="กดเพื่อซิงค์อีเมลใหม่จาก Gmail"
+          >
+            <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
+            {isSyncing ? 'กำลังซิงค์...' : 'ซิงค์อีเมล'}
+          </button>
+
+          {lastSyncedAt && (
+            <span className="text-xs text-gray-500">
+              ซิงค์ล่าสุด: {lastSyncedAt.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })} น.
+            </span>
+          )}
+        </div>
+
+        {syncMessage && (
+          <div className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full transition-all ${
+            syncMessage.startsWith('เกิดข้อผิดพลาด') 
+              ? 'bg-red-50 text-red-700 border border-red-200' 
+              : 'bg-green-50 text-green-700 border border-green-200'
+          }`}>
+            {!syncMessage.startsWith('เกิดข้อผิดพลาด') && <CheckCircle2 className="w-3.5 h-3.5 text-green-600" />}
+            {syncMessage}
+          </div>
+        )}
       </div>
 
-      <div className="flex items-center justify-between mt-6 pt-6 border-t">
-        <button
-          onClick={handlePrevious}
-          disabled={currentIndex === 0}
-          className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-        >
-          Previous
-        </button>
+      {emails.length === 0 ? (
+        <div className="bg-gray-50 border border-gray-200 rounded-lg p-12 text-center text-gray-500">
+          ไม่มีอีเมลในกล่องข้อความของคุณ
+        </div>
+      ) : (
+        <>
+          <div className="space-y-3">
+            {emails.map((email) => (
+              <EmailItem key={email.id} email={email} onEmailUpdate={handleEmailUpdate} />
+            ))}
+          </div>
 
-        <span className="text-sm text-gray-600">
-          หน้า {currentIndex + 1}
-        </span>
+          <div className="flex items-center justify-between mt-6 pt-6 border-t">
+            <button
+              onClick={handlePrevious}
+              disabled={currentIndex === 0 || isSyncing}
+              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              Previous
+            </button>
 
-        <button
-          onClick={handleNext}
-          disabled={!hasMore}
-          className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-        >
-          Next
-        </button>
-      </div>
+            <span className="text-sm text-gray-600">
+              หน้า {currentIndex + 1}
+            </span>
+
+            <button
+              onClick={handleNext}
+              disabled={!hasMore || isSyncing}
+              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              Next
+            </button>
+          </div>
+        </>
+      )}
     </div>
   );
 }

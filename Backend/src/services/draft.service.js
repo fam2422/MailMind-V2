@@ -4,11 +4,7 @@ const { oauth2Client } = require('../config/google');
 const { decrypt } = require('../utils/encryption');
 
 // ดึง AI Services
-const geminiService = require('./ai/gemini');
-const openaiService = require('./ai/openai');
-const claudeService = require('./ai/claude');
-const openrouterService = require('./ai/openrouter');
-const intelsphereService = require('./ai/intelsphere');
+const localAiService = require('./ai/local');
 
 // ดึง Google Services (สมมติว่าคุณมี 2 ไฟล์นี้อยู่แล้วตามที่คอมเมนต์ไว้)
 const gmailService = require('./gmail.service'); 
@@ -34,31 +30,11 @@ exports.generateDraft = async (userId, threadId) => {
   // 1. ดึงข้อมูลและตรวจสอบ
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    include: { setting: true, apiKeys: true }
+    include: { setting: true }
   });
 
-  if (!user.apiKeys || user.apiKeys.length === 0) {
-    throw new Error('กรุณาตั้งค่า API Key ของ AI ก่อนใช้งาน');
-  }
-
-  const targetProvider = user.setting?.defaultProvider || 'gemini';
-  const targetModel = user.setting?.defaultModel || 'gemini-2.5-flash';
-  const activeKeyObj = user.apiKeys.find(key => key.provider === targetProvider);
-
-  if (!activeKeyObj) {
-    throw new Error(`คุณเลือกใช้ค่าย ${targetProvider.toUpperCase()} แต่ยังไม่ได้ตั้งค่า API Key สำหรับค่ายนี้`);
-  }
-
-  const realApiKey = decrypt(activeKeyObj.encryptedKey, activeKeyObj.iv, activeKeyObj.authTag);
-  
-  // 2. เลือกค่าย AI
-  let activeAiService;
-  if (targetProvider === 'gemini') activeAiService = geminiService;
-  else if (targetProvider === 'openai') activeAiService = openaiService;
-  else if (targetProvider === 'claude') activeAiService = claudeService;
-  else if (targetProvider === 'openrouter') activeAiService = openrouterService;
-  else if (targetProvider === 'intelsphere') activeAiService = intelsphereService;
-  else throw new Error('ไม่พบผู้ให้บริการ AI ที่ระบุ');
+  const targetModel = user?.setting?.defaultModel || process.env.LOCAL_AI_MODEL || 'llama3.1:8b';
+  const activeAiService = localAiService;
 
   // 3. ดึงอีเมล
   oauth2Client.setCredentials({ refresh_token: user.refreshToken, access_token: user.accessToken });
@@ -73,9 +49,10 @@ exports.generateDraft = async (userId, threadId) => {
     const fromHeader = headers.find(h => h.name.toLowerCase() === 'from')?.value || 'Unknown';
     fullThreadText += `\n--- Email From: ${fromHeader} ---\n${tText.trim()}\n`;
   });
-    console.log(`\n[AI] 🤖 Generating draft using Provider: ${targetProvider.toUpperCase()} | Model: ${targetModel}\n`);
+  console.log(`\n[AI] 🤖 Generating draft using Local AI | Model: ${targetModel}\n`);
+
   // 4. สั่ง AI วิเคราะห์
-  const aiResult = await activeAiService.extractAppointment(realApiKey, fullThreadText, targetModel);
+  const aiResult = await activeAiService.extractAppointment(null, fullThreadText, targetModel);
 
   // 5. ดึงข้อมูล Calendar
   let existingEvents = [];
@@ -95,7 +72,7 @@ exports.generateDraft = async (userId, threadId) => {
 
   // 6. ร่างอีเมล
   const draftResult = await activeAiService.draftReplyWithCalendar(
-    realApiKey, fullThreadText, aiResult, existingEvents, user.setting, targetModel
+    null, fullThreadText, aiResult, existingEvents, user?.setting, targetModel
   );
 
   return {
@@ -143,15 +120,14 @@ exports.approveAndSend = async (userId, draftId, editedReply) => {
 
 exports.getUserDrafts = async (userId) => {
   return await prisma.draft.findMany({
-    where: { userId },
+    where: { userId, status: 'PENDING' },
     orderBy: { createdAt: 'desc' }
   });
 };
 
 exports.rejectDraft = async (userId, draftId) => {
-  await prisma.draft.update({
-    where: { id: draftId, userId },
-    data: { status: 'REJECTED' }
+  await prisma.draft.delete({
+    where: { id: draftId, userId }
   });
-  return { message: "ยกเลิก Draft เรียบร้อย" };
+  return { message: "ลบ Draft เรียบร้อยแล้ว" };
 };

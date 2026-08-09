@@ -8,6 +8,8 @@ const claudeService = require('./ai/claude');
 const openrouterService = require('./ai/openrouter');
 const intelsphereService = require('./ai/intelsphere');
 
+const localAiService = require('./ai/local');
+
 exports.getUserSettings = async (userId) => {
   const setting = await prisma.userSetting.upsert({
     where: { userId },
@@ -15,17 +17,8 @@ exports.getUserSettings = async (userId) => {
     create: { userId },
   });
 
-  const keys = await prisma.apiKey.findMany({
-    where: { userId },
-    select: { provider: true },
-  });
-
   const configuredKeys = {
-    gemini: keys.some(k => k.provider === 'gemini'),
-    openai: keys.some(k => k.provider === 'openai'),
-    claude: keys.some(k => k.provider === 'claude'),
-    openrouter: keys.some(k => k.provider === 'openrouter'),
-    intelsphere: keys.some(k => k.provider === 'intelsphere'),
+    local: true,
   };
 
   return { setting, configuredKeys };
@@ -43,53 +36,16 @@ exports.updateUserSettings = async (userId, data) => {
 };
 
 exports.saveProviderApiKey = async (userId, provider, apiKey) => {
-  const encryptedData = encrypt(apiKey);
-
-  if (!encryptedData) {
-    throw new Error('กระบวนการเข้ารหัสล้มเหลว');
-  }
-
-  await prisma.apiKey.upsert({
-    where: { userId_provider: { userId, provider } },
-    update: {
-      encryptedKey: encryptedData.encryptedKey,
-      iv: encryptedData.iv,
-      authTag: encryptedData.authTag,
-    },
-    create: {
-      userId,
-      provider,
-      encryptedKey: encryptedData.encryptedKey,
-      iv: encryptedData.iv,
-      authTag: encryptedData.authTag,
-    },
-  });
-
-  return `บันทึก API Key ของ ${provider} สำเร็จเรียบร้อย`;
+  return `บันทึกการตั้งค่า ${provider} เรียบร้อย`;
 };
 
 exports.deleteProviderApiKey = async (userId, provider) => {
-  await prisma.apiKey.delete({
-    where: { userId_provider: { userId, provider } },
-  });
-  return `ลบ API Key ของ ${provider} สำเร็จ`;
+  return `ลบการตั้งค่าเรียบร้อย`;
 };
 
 exports.testProviderApiKey = async (provider, apiKey, modelName) => {
-  if (provider === 'gemini') {
-    await geminiService.testKey(apiKey, modelName);
-  } else if (provider === 'openai') {
-    await openaiService.testKey(apiKey, modelName);
-  } else if (provider === 'claude') {
-    await claudeService.testKey(apiKey, modelName);
-  } else if (provider === 'openrouter') {
-    await openrouterService.testKey(apiKey, modelName);
-  } else if (provider === 'intelsphere') {
-    await intelsphereService.testKey(apiKey, modelName);
-  } else {
-    throw new Error('ไม่รู้จัก Provider นี้');
-  }
-  return `✅ API Key ของ ${provider.toUpperCase()} ใช้งานได้ปกติ`;
+  await localAiService.testKey(apiKey, modelName);
+  return `✅ เชื่อมต่อ Local AI (${modelName || process.env.LOCAL_AI_MODEL || 'llama3.1:8b'}) สำเร็จ!`;
 };
 
 exports.toggleAiStatus = async (userId, isAutoReplyActive) => {
@@ -106,8 +62,5 @@ exports.toggleAiStatus = async (userId, isAutoReplyActive) => {
 };
 
 exports.checkUserHasAnyKey = async (userId) => {
-  const count = await prisma.apiKey.count({
-    where: { userId },
-  });
-  return count > 0;
+  return true; // Local AI is enabled by default
 };

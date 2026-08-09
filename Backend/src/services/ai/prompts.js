@@ -6,6 +6,10 @@ exports.buildExtractionPrompt = (emailText, today) => {
     You are an executive assistant. Read the following email thread and extract appointment details.
     Current Date Context: Today is ${today}. Use this to infer the correct year for incomplete dates.
     
+    CRITICAL RULES FOR APPOINTMENT CLASSIFICATION:
+    - Set "isAppointment": true if the email mentions ANY meeting, invitation, appointment, request to hang out, or activity/event proposal on a specific date (e.g. "ชวนไป...", "นัดพบ...", "ประชุม...", "ว่างไหม...").
+    - Only set "isAppointment": false if the email is purely promotional, spam, receipt, or contains no date/meeting request.
+
     CRITICAL RULES FOR DATES & TIMEZONES: 
     1. You MUST convert any Thai Buddhist Era (B.E. / พ.ศ.) year found in the text or context into the Gregorian calendar (A.D. / ค.ศ.) before outputting. 
        Formula: Gregorian Year = Buddhist Year - 543 (e.g., 2569 becomes 2026). 
@@ -70,11 +74,16 @@ exports.buildDraftPrompt = (pronoun, politeParticle, tone, extractedData, emailT
     4. MUST append the following exact signature at the end of the email:
     ${fullSignature}
     
-    Output ONLY a valid JSON object. Do not include markdown blocks.
+    STRICT OUTPUT FORMAT RULES:
+    1. Return ONLY a single JSON object.
+    2. "draftMessage" MUST be a PLAIN TEXT Thai email. DO NOT put JSON syntax, sub-objects, or keys inside "draftMessage".
+    3. Format "draftMessage" like a standard email (Greeting line -> Body text -> Signature).
+
+    Example Output Structure:
     {
-      "actionType": "string (ACCEPT or RESCHEDULE)",
-      "reasoning": "string (Your reasoning in Thai, explaining if it was outside working hours, conflicted, or accepted)",
-      "draftMessage": "string (The final email in Thai, including the signature)"
+      "actionType": "ACCEPT",
+      "reasoning": "ตอบตกลงเนื่องจากอยู่ในเวลางานและไม่มีนัดหมายซ้ำซ้อน",
+      "draftMessage": "เรียนคุณสมชาย\n\nขอขอบคุณที่เชิญเข้าร่วมประชุมครับ...\n\nขอแสดงความนับถือ\n..."
     }
   `.trim();
 };

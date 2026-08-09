@@ -1,4 +1,5 @@
 const gmailService = require('../services/gmail.service'); // ดึง Service มาใช้งาน
+const { syncSingleUser } = require('../cron/emailWatcher');
 
 exports.getEmails = async (req, res) => {
   try {
@@ -98,5 +99,21 @@ exports.replyToThread = async (req, res) => {
     }
     
     res.status(500).json({ error: 'เกิดข้อผิดพลาดในการส่งอีเมลตอบกลับ' });
+  }
+};
+
+exports.syncEmails = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    console.log(`[INFO] Manual email sync requested for user ${userId}`);
+    
+    const result = await syncSingleUser(userId);
+    res.json({ success: true, message: 'ซิงค์อีเมลสำเร็จ!', ...result });
+  } catch (error) {
+    console.error('Error syncing emails:', error.message);
+    if (error.message === 'UNAUTHORIZED') {
+      return res.status(401).json({ error: 'ไม่พบการเชื่อมต่อกับ Google กรุณาล็อกอินใหม่' });
+    }
+    res.status(500).json({ error: 'เกิดข้อผิดพลาดในการซิงค์อีเมล' });
   }
 };

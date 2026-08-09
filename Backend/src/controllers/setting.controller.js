@@ -105,37 +105,19 @@ exports.checkSetupStatus = async (req, res) => {
 // ดึงรายชื่อโมเดลแบบไดนามิก
 exports.getModelsList = async (req, res) => {
   try {
-    const { provider, apiKey } = req.body;
+    const { OpenAI } = require('openai');
+    const baseURL = process.env.LOCAL_AI_BASE_URL || 'http://localhost:11434/v1';
+    const openai = new OpenAI({ apiKey: 'ollama', baseURL });
     
-    if (provider === 'openrouter') {
-      const response = await fetch('https://openrouter.ai/api/v1/models');
-      const data = await response.json();
-      const models = data.data.map(m => ({ id: m.id, name: m.name })).sort((a,b) => a.name.localeCompare(b.name));
-      return res.json({ models });
-    }
-
-    if (provider === 'openai' || provider === 'intelsphere') {
-      if (!apiKey) throw new Error(`กรุณากรอก API Key ก่อนโหลดรายชื่อโมเดล`);
-      
-      const { OpenAI } = require('openai');
-      let baseURL = undefined;
-      if (provider === 'intelsphere') baseURL = "https://gen.ai.kku.ac.th/api/v1";
-
-      const openai = new OpenAI({ apiKey, baseURL });
+    try {
       const list = await openai.models.list();
-      
-      let models = list.data;
-      
-      if (provider === 'openai') {
-        models = models.filter(m => m.id.startsWith('gpt') || m.id.startsWith('o1') || m.id.startsWith('o3'));
-      }
-
-      const formattedModels = models.map(m => ({ id: m.id, name: m.id })).sort((a,b) => a.id.localeCompare(b.id));
+      const formattedModels = (list.data || []).map(m => ({ id: m.id, name: m.id })).sort((a, b) => a.id.localeCompare(b.id));
       return res.json({ models: formattedModels });
+    } catch (fetchErr) {
+      // Fallback if list endpoint fails
+      const defaultModel = process.env.LOCAL_AI_MODEL || 'llama3.1:8b';
+      return res.json({ models: [{ id: defaultModel, name: defaultModel }] });
     }
-
-    return res.json({ models: [] });
-
   } catch (error) {
     console.error("Fetch models error:", error);
     res.status(400).json({ error: error.message || 'ไม่สามารถดึงรายชื่อโมเดลได้' });

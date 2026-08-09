@@ -52,25 +52,18 @@ exports.getOrGenerateSummary = async (userId, type, isForce) => {
 
   console.log(`[SUMMARY] ✨ No cache found or forced. Calling AI...`);
 
-  // 2. ดึงข้อมูล User, Settings และ API Key
+  // 2. ดึงข้อมูล User และ Settings
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    include: { setting: true, apiKeys: true }
+    include: { setting: true }
   });
 
-  if (!user || !user.apiKeys || user.apiKeys.length === 0) {
-    throw new Error('กรุณาตั้งค่า API Key ของ AI ก่อนใช้งาน');
+  if (!user) {
+    throw new Error('ไม่พบข้อมูลผู้ใช้');
   }
 
-  const targetProvider = user.setting?.defaultProvider || 'gemini';
-  const targetModel = user.setting?.defaultModel || 'gemini-2.5-flash';
-  const activeKeyObj = user.apiKeys.find(key => key.provider === targetProvider);
-
-  if (!activeKeyObj) {
-    throw new Error(`คุณเลือกใช้ค่าย ${targetProvider.toUpperCase()} แต่ยังไม่ได้ตั้งค่า API Key สำหรับค่ายนี้`);
-  }
-
-  const realApiKey = decrypt(activeKeyObj.encryptedKey, activeKeyObj.iv, activeKeyObj.authTag);
+  const targetModel = user.setting?.defaultModel || process.env.LOCAL_AI_MODEL || 'llama3.1:8b';
+  const baseURL = process.env.LOCAL_AI_BASE_URL || 'http://localhost:11434/v1';
 
   // 3. ดึง Google Calendar Events
   oauth2Client.setCredentials({ refresh_token: user.refreshToken, access_token: user.accessToken });
@@ -95,34 +88,15 @@ exports.getOrGenerateSummary = async (userId, type, isForce) => {
   const prompt = buildScheduleSummaryPrompt(events, type, dateContext);
   let summaryContent = '';
 
-  console.log(`[SUMMARY] Generating using Provider: ${targetProvider.toUpperCase()} | Model: ${targetModel}`);
+  console.log(`[SUMMARY] Generating using Local AI | Model: ${targetModel}`);
 
   // 5. สั่ง AI เขียนสรุป
-  if (targetProvider === 'gemini') {
-    const genAI = new GoogleGenerativeAI(realApiKey);
-    const model = genAI.getGenerativeModel({ model: targetModel });
-    const result = await model.generateContent(prompt);
-    summaryContent = result.response.text();
-  } else if (targetProvider === 'claude') {
-    const anthropic = new Anthropic({ apiKey: realApiKey });
-    const response = await anthropic.messages.create({
-      model: targetModel,
-      max_tokens: 1500,
-      messages: [{ role: 'user', content: prompt }]
-    });
-    summaryContent = response.content[0].text;
-  } else {
-    let baseURL = undefined;
-    if (targetProvider === 'openrouter') baseURL = "https://openrouter.ai/api/v1";
-    if (targetProvider === 'intelsphere') baseURL = "https://gen.ai.kku.ac.th/api/v1";
-
-    const openai = new OpenAI({ apiKey: realApiKey, baseURL });
-    const response = await openai.chat.completions.create({
-      model: targetModel,
-      messages: [{ role: "user", content: prompt }]
-    });
-    summaryContent = response.choices[0].message.content;
-  }
+  const openai = new OpenAI({ apiKey: 'ollama', baseURL });
+  const response = await openai.chat.completions.create({
+    model: targetModel,
+    messages: [{ role: "user", content: prompt }]
+  });
+  summaryContent = response.choices[0].message.content;
 
   // 6. บันทึก/อัปเดตลง Database
   const savedSummary = await prisma.summary.upsert({

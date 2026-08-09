@@ -16,7 +16,7 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (user && !loading) {
-      router.replace('/setup');
+      router.replace('/inbox');
     }
   }, [user, loading, router]);
 

@@ -7,11 +7,7 @@ const { decrypt } = require('../utils/encryption');
 const { APPOINTMENT_KEYWORDS } = require('../config/constants'); 
 const pLimit = require('p-limit');
 
-const geminiService = require('../services/ai/gemini'); 
-const openaiService = require('../services/ai/openai');
-const claudeService = require('../services/ai/claude');
-const openrouterService = require('../services/ai/openrouter');
-const intelsphereService = require('../services/ai/intelsphere');
+const localAiService = require('../services/ai/local');
 
 let isCronRunning = false;
 const limit = pLimit(3); 
@@ -34,26 +30,14 @@ const getEmailText = (payload) => {
   return text;
 };
 
-const getAiService = (providerName) => {
-  switch ((providerName || '').toLowerCase()) {
-    case 'openai': return openaiService;
-    case 'claude': return claudeService;
-    case 'openrouter': return openrouterService;
-    case 'intelsphere': return intelsphereService;
-    case 'gemini':
-    default: return geminiService;
-  }
-};
-
 const processUserEmails = async (user) => {
   const logPrefix = `[${user.email}]`; 
   
   try {
     if (!user.setting) return;
     
-    const selectedProvider = (user.setting.defaultProvider || 'gemini').toLowerCase();
-    const selectedModel = user.setting.defaultModel;
-    const aiService = getAiService(selectedProvider);
+    const selectedModel = user.setting.defaultModel || process.env.LOCAL_AI_MODEL || 'llama3.1:8b';
+    const aiService = localAiService;
     
     const userOauth2Client = new google.auth.OAuth2(
       process.env.GOOGLE_CLIENT_ID,
@@ -110,20 +94,6 @@ const processUserEmails = async (user) => {
         const hasKeyword = APPOINTMENT_KEYWORDS.some(kw => latestText.toLowerCase().includes(kw));
 
         if (hasKeyword) {
-          const apiKeyObj = user.apiKeys.find(k => k.provider.toLowerCase() === selectedProvider);
-          if (!apiKeyObj) {
-            console.log(`${logPrefix} [ERROR] คุณเลือกใช้ค่าย ${selectedProvider.toUpperCase()} แต่ยังไม่ได้ตั้งค่า API Key`);
-            continue;
-          }
-          
-          let realApiKey;
-          try {
-            realApiKey = decrypt(apiKeyObj.encryptedKey, apiKeyObj.iv, apiKeyObj.authTag);
-          } catch (err) {
-            console.error(`${logPrefix} [ERROR] Decryption failed for ${selectedProvider.toUpperCase()} Key.`);
-            continue;
-          }
-          
           const threadDetail = await gmail.users.threads.get({ userId: 'me', id: threadId });
           let fullThreadText = "";
           threadDetail.data.messages.forEach((tMsg) => {
@@ -131,9 +101,9 @@ const processUserEmails = async (user) => {
             fullThreadText += `\n--- Email From: ${msgFrom} ---\n${tText.trim()}\n`;
           });
 
-          console.log(`${logPrefix} [AI] Analyzing with ${selectedProvider.toUpperCase()} (Model: ${selectedModel || 'Default'})...`);
+          console.log(`${logPrefix} [AI] Analyzing with Local AI (Model: ${selectedModel})...`);
           
-          const aiResult = await aiService.extractAppointment(realApiKey, fullThreadText, selectedModel);
+          const aiResult = await aiService.extractAppointment(null, fullThreadText, selectedModel);
           
           if (aiResult.isAppointment) {
             console.log(`${logPrefix} [SUCCESS] Appointment detected! Date: ${aiResult.date}`);
@@ -151,7 +121,7 @@ const processUserEmails = async (user) => {
             }
 
             const draftResult = await aiService.draftReplyWithCalendar(
-              realApiKey, fullThreadText, aiResult, existingEvents, user.setting, selectedModel
+              null, fullThreadText, aiResult, existingEvents, user.setting, selectedModel
             );
 
             if (draftResult.draftMessage) {
@@ -172,14 +142,15 @@ const processUserEmails = async (user) => {
               await notificationService.sendPendingDraftNotification(
                 userOauth2Client, user.email, { from: msgFrom, subject: cleanSubject }, eventDate
               );
-              console.log(`${logPrefix} [DONE] Draft created via ${selectedProvider.toUpperCase()} and Notification sent.`);
+              console.log(`${logPrefix} [DONE] Draft created via Local AI (${selectedModel}) and Notification sent.`);
             }
           }
         }
       } catch (msgErr) {
         console.error(`${logPrefix} [ERROR] Failed to process message ${msg.id}:`, msgErr.message);
       }
-    } 
+    }
+ 
 
     await prisma.userSetting.update({ 
       where: { userId: user.id },
@@ -223,4 +194,18 @@ const startCron = () => {
   console.log("[SYSTEM] Email Watcher Cron Job started (Every 10 mins)");
 };
 
-module.exports = { startCron };
+const syncSingleUser = async (userId) => {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    include: { setting: true, apiKeys: true }
+  });
+
+  if (!user || !user.refreshToken) {
+    throw new Error('UNAUTHORIZED');
+  }
+
+  await processUserEmails(user);
+  return { success: true, lastEmailSync: new Date() };
+};
+
+module.exports = { startCron, syncSingleUser };
