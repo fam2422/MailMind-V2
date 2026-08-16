@@ -1,6 +1,7 @@
 const { google } = require('googleapis');
 const prisma = require('../config/prisma');
-const { oauth2Client } = require('../config/google');
+const { createOAuth2Client } = require('../config/google');
+const { decryptToken } = require('../utils/encryption');
 
 
 // Helper Functions
@@ -52,19 +53,21 @@ const getEmailBody = (payload) => {
 exports.getInboxEmails = async (userId, pageToken, pageSize = 10) => {
   // 1. ดึงข้อมูล User จาก Database
   const user = await prisma.user.findUnique({ where: { id: userId } });
+  const refreshToken = decryptToken(user?.refreshToken);
+  const accessToken = decryptToken(user?.accessToken);
   
-  if (!user || !user.refreshToken) {
+  if (!user || !refreshToken) {
     throw new Error('UNAUTHORIZED'); // ส่ง Error ให้ Controller ไปจัดการ 401
   }
 
   try {
-    // 2. ตั้งค่า Token
-    oauth2Client.setCredentials({
-      refresh_token: user.refreshToken,
-      access_token: user.accessToken, 
+    // 2. ตั้งค่า Token เฉพาะ User นี้
+    const authClient = createOAuth2Client({
+      refresh_token: refreshToken,
+      access_token: accessToken, 
     });
 
-    const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
+    const gmail = google.gmail({ version: 'v1', auth: authClient });
 
     // 3. ดึงรายการ ID ของอีเมล
     const listRes = await gmail.users.messages.list({
@@ -132,17 +135,19 @@ exports.getInboxEmails = async (userId, pageToken, pageSize = 10) => {
 // ฟังก์ชันสำหรับเปลี่ยนสถานะอีเมลเป็นอ่านแล้ว
 exports.markEmailAsRead = async (userId, messageId) => {
   const user = await prisma.user.findUnique({ where: { id: userId } });
+  const refreshToken = decryptToken(user?.refreshToken);
+  const accessToken = decryptToken(user?.accessToken);
   
-  if (!user || !user.refreshToken) {
+  if (!user || !refreshToken) {
     throw new Error('UNAUTHORIZED');
   }
 
-  oauth2Client.setCredentials({
-    refresh_token: user.refreshToken,
-    access_token: user.accessToken,
+  const authClient = createOAuth2Client({
+    refresh_token: refreshToken,
+    access_token: accessToken,
   });
 
-  const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
+  const gmail = google.gmail({ version: 'v1', auth: authClient });
 
   // สั่งลบ Label 'UNREAD'
   await gmail.users.messages.modify({
@@ -159,17 +164,19 @@ exports.markEmailAsRead = async (userId, messageId) => {
 // 🌟 เพิ่มฟังก์ชันใหม่สำหรับดึงข้อมูล Thread
 exports.getThreadDetails = async (userId, threadId) => {
   const user = await prisma.user.findUnique({ where: { id: userId } });
+  const refreshToken = decryptToken(user?.refreshToken);
+  const accessToken = decryptToken(user?.accessToken);
   
-  if (!user || !user.refreshToken) {
+  if (!user || !refreshToken) {
     throw new Error('UNAUTHORIZED');
   }
 
-  oauth2Client.setCredentials({
-    refresh_token: user.refreshToken,
-    access_token: user.accessToken,
+  const authClient = createOAuth2Client({
+    refresh_token: refreshToken,
+    access_token: accessToken,
   });
 
-  const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
+  const gmail = google.gmail({ version: 'v1', auth: authClient });
 
   try {
     // ดึงข้อมูลทั้ง Thread แบบ Full
@@ -264,17 +271,19 @@ exports.sendEmailReply = async (gmail, draft, metadata, editedReply) => {
 
 exports.sendDirectReply = async (userId, threadId, messageId, replyText) => {
   const user = await prisma.user.findUnique({ where: { id: userId } });
+  const refreshToken = decryptToken(user?.refreshToken);
+  const accessToken = decryptToken(user?.accessToken);
   
-  if (!user || !user.refreshToken) {
+  if (!user || !refreshToken) {
     throw new Error('UNAUTHORIZED');
   }
 
-  oauth2Client.setCredentials({
-    refresh_token: user.refreshToken,
-    access_token: user.accessToken,
+  const authClient = createOAuth2Client({
+    refresh_token: refreshToken,
+    access_token: accessToken,
   });
 
-  const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
+  const gmail = google.gmail({ version: 'v1', auth: authClient });
 
   // 1. ดึง Metadata จากอีเมลต้นฉบับที่เราต้องการตอบกลับ
   const metadata = await exports.getOriginalEmailMetadata(gmail, messageId);

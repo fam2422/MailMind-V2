@@ -1,24 +1,27 @@
 const { google } = require('googleapis');
 const prisma = require('../config/prisma');
-const { oauth2Client } = require('../config/google');
+const { createOAuth2Client } = require('../config/google');
+const { decryptToken } = require('../utils/encryption');
 const notificationService = require('./notification.service');
 
 exports.getEventsForUser = async (userId) => {
   // 1. ตรวจสอบข้อมูลผู้ใช้จาก Database
   const user = await prisma.user.findUnique({ where: { id: userId } });
+  const refreshToken = decryptToken(user?.refreshToken);
+  const accessToken = decryptToken(user?.accessToken);
   
   // โยน Error ออกไปถ้าไม่มีสิทธิ์ (เดี๋ยว Controller จะรับไปแปลงเป็น Status 401 เอง)
-  if (!user || !user.refreshToken) {
+  if (!user || !refreshToken) {
     throw new Error('UNAUTHORIZED'); 
   }
 
   // 2. ตั้งค่าการเชื่อมต่อ Google API
-  oauth2Client.setCredentials({
-    refresh_token: user.refreshToken,
-    access_token: user.accessToken,
+  const authClient = createOAuth2Client({
+    refresh_token: refreshToken,
+    access_token: accessToken,
   });
 
-  const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
+  const calendar = google.calendar({ version: 'v3', auth: authClient });
 
   // 3. คำนวณช่วงเวลา (ย้อนหลัง 1 เดือน และล่วงหน้า 2 เดือน)
   const timeMin = new Date();

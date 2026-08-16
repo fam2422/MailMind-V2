@@ -1,9 +1,9 @@
 const cron = require('node-cron');
 const { google } = require('googleapis');
 const prisma = require('../config/prisma');
-const { oauth2Client } = require('../config/google');
+const { createOAuth2Client } = require('../config/google');
 const notificationService = require('../services/notification.service');
-const { decrypt } = require('../utils/encryption');
+const { decryptToken } = require('../utils/encryption');
 const { APPOINTMENT_KEYWORDS } = require('../config/constants'); 
 const pLimit = require('p-limit');
 
@@ -35,18 +35,25 @@ const processUserEmails = async (user) => {
   
   try {
     if (!user.setting) return;
+    if (!user.setting.isAutoReplyActive) {
+      console.log(`${logPrefix} [SKIP] AI Auto-Reply is disabled.`);
+      return;
+    }
+
+    const refreshToken = decryptToken(user.refreshToken);
+    const accessToken = decryptToken(user.accessToken);
+
+    if (!refreshToken) {
+      console.log(`${logPrefix} [SKIP] No valid refresh token found.`);
+      return;
+    }
     
     const selectedModel = user.setting.defaultModel || process.env.LOCAL_AI_MODEL || 'llama3.1:8b';
     const aiService = localAiService;
     
-    const userOauth2Client = new google.auth.OAuth2(
-      process.env.GOOGLE_CLIENT_ID,
-      process.env.GOOGLE_CLIENT_SECRET,
-      process.env.GOOGLE_REDIRECT_URI
-    );
-    userOauth2Client.setCredentials({ 
-      refresh_token: user.refreshToken, 
-      access_token: user.accessToken 
+    const userOauth2Client = createOAuth2Client({ 
+      refresh_token: refreshToken, 
+      access_token: accessToken 
     });
     
     const gmail = google.gmail({ version: 'v1', auth: userOauth2Client });
@@ -204,7 +211,8 @@ const syncSingleUser = async (userId) => {
     include: { setting: true }
   });
 
-  if (!user || !user.refreshToken) {
+  const refreshToken = decryptToken(user?.refreshToken);
+  if (!user || !refreshToken) {
     throw new Error('UNAUTHORIZED');
   }
 

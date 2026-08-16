@@ -34,6 +34,16 @@ app.use(cors({
 
 app.use(express.json());
 
+// Health Check Endpoint
+app.get('/api/health', (req, res) => {
+  res.json({
+    status: 'ok',
+    service: 'MailMind Backend',
+    timestamp: new Date().toISOString(),
+    uptime: `${Math.floor(process.uptime())}s`
+  });
+});
+
 app.use('/api/auth', authRoutes);
 app.use('/api/user', userRoutes);
 app.use('/api/emails', emailRoutes);
@@ -43,11 +53,25 @@ app.use('/api/settings', settingRoutes);
 app.use('/api/drafts', draftRoutes);
 app.use('/api/summary', summaryRoutes);
 
+// Global Error Handling Middleware
+app.use((err, req, res, next) => {
+  console.error('[SERVER ERROR]', err.message || err);
+  res.status(err.status || 500).json({
+    error: err.message || 'Internal Server Error'
+  });
+});
+
 const PORT = process.env.PORT || 5000;
+const localAiBase = process.env.LOCAL_AI_BASE_URL || 'http://localhost:11434/v1';
+const localAiModel = process.env.LOCAL_AI_MODEL || 'llama3.1:8b';
 
 app.listen(PORT, () => {
-  console.log(`✅ Backend is running on port ${PORT}`);
+  console.log(`\n==============================================`);
+  console.log(`🚀 MailMind Backend is running on port ${PORT}`);
+  console.log(`🤖 Local AI Endpoint: ${localAiBase}`);
+  console.log(`🧠 Default Local Model: ${localAiModel}`);
   console.log(`🔗 Allowed CORS Origins: ${allowedOrigins.join(', ')}`);
+  console.log(`==============================================\n`);
   
   startCron();
 });

@@ -1,7 +1,7 @@
 const { google } = require('googleapis');
 const prisma = require('../config/prisma');
-const { oauth2Client } = require('../config/google');
-const { decrypt } = require('../utils/encryption');
+const { createOAuth2Client } = require('../config/google');
+const { decryptToken } = require('../utils/encryption');
 
 // ดึง AI Services
 const localAiService = require('./ai/local');
@@ -33,13 +33,16 @@ exports.generateDraft = async (userId, threadId) => {
     include: { setting: true }
   });
 
+  const refreshToken = decryptToken(user?.refreshToken);
+  const accessToken = decryptToken(user?.accessToken);
+
   const targetModel = user?.setting?.defaultModel || process.env.LOCAL_AI_MODEL || 'llama3.1:8b';
   const activeAiService = localAiService;
 
   // 3. ดึงอีเมล
-  oauth2Client.setCredentials({ refresh_token: user.refreshToken, access_token: user.accessToken });
-  const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
-  const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
+  const authClient = createOAuth2Client({ refresh_token: refreshToken, access_token: accessToken });
+  const gmail = google.gmail({ version: 'v1', auth: authClient });
+  const calendar = google.calendar({ version: 'v3', auth: authClient });
 
   const threadDetail = await gmail.users.threads.get({ userId: 'me', id: threadId });
   let fullThreadText = "";
@@ -90,9 +93,12 @@ exports.approveAndSend = async (userId, draftId, editedReply) => {
     include: { setting: true }
   });
   
-  oauth2Client.setCredentials({ refresh_token: user.refreshToken, access_token: user.accessToken });
-  const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
-  const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
+  const refreshToken = decryptToken(user?.refreshToken);
+  const accessToken = decryptToken(user?.accessToken);
+
+  const authClient = createOAuth2Client({ refresh_token: refreshToken, access_token: accessToken });
+  const gmail = google.gmail({ version: 'v1', auth: authClient });
+  const calendar = google.calendar({ version: 'v3', auth: authClient });
 
   const metadata = await gmailService.getOriginalEmailMetadata(gmail, draft.messageId);
   await gmailService.sendEmailReply(gmail, draft, metadata, editedReply);
@@ -103,7 +109,7 @@ exports.approveAndSend = async (userId, draftId, editedReply) => {
       draft, 
       metadata, 
       user.setting?.timezone,
-      oauth2Client,
+      authClient,
       user.email
     );
   } catch (calError) {

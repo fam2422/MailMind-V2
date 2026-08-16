@@ -115,7 +115,7 @@ exports.getModelsList = async (req, res) => {
       return res.json({ models: formattedModels });
     } catch (fetchErr) {
       // Fallback if list endpoint fails
-      const defaultModel = process.env.LOCAL_AI_MODEL || 'llama3.1:8b';
+      const defaultModel = process.env.LOCAL_AI_MODEL || 'llama3.1:latest';
       return res.json({ models: [{ id: defaultModel, name: defaultModel }] });
     }
   } catch (error) {

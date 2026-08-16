@@ -1,14 +1,6 @@
 const prisma = require('../config/prisma');
-const { encrypt } = require('../utils/encryption');
-
-// AI Services
-const geminiService = require('./ai/gemini');
-const openaiService = require('./ai/openai');
-const claudeService = require('./ai/claude');
-const openrouterService = require('./ai/openrouter');
-const intelsphereService = require('./ai/intelsphere');
-
 const localAiService = require('./ai/local');
+
 
 exports.getUserSettings = async (userId) => {
   const setting = await prisma.userSetting.upsert({
@@ -17,11 +9,20 @@ exports.getUserSettings = async (userId) => {
     create: { userId },
   });
 
+  const activeModel = setting.defaultModel || process.env.LOCAL_AI_MODEL || 'llama3.1:latest';
+
   const configuredKeys = {
     local: true,
   };
 
-  return { setting, configuredKeys };
+  return {
+    setting: {
+      ...setting,
+      defaultModel: activeModel,
+    },
+    configuredKeys,
+    activeModel,
+  };
 };
 
 exports.updateUserSettings = async (userId, data) => {
@@ -44,17 +45,18 @@ exports.deleteProviderApiKey = async (userId, provider) => {
 };
 
 exports.testProviderApiKey = async (provider, apiKey, modelName) => {
-  await localAiService.testKey(apiKey, modelName);
-  return `✅ เชื่อมต่อ Local AI (${modelName || process.env.LOCAL_AI_MODEL || 'llama3.1:8b'}) สำเร็จ!`;
+  const targetModel = modelName || process.env.LOCAL_AI_MODEL || 'llama3.1:latest';
+  await localAiService.testKey(apiKey, targetModel);
+  return `✅ เชื่อมต่อ Local AI (${targetModel}) สำเร็จ!`;
 };
 
 exports.toggleAiStatus = async (userId, isAutoReplyActive) => {
   const setting = await prisma.userSetting.upsert({
     where: { userId },
     update: { isAutoReplyActive },
-    create: { 
+    create: {
       userId,
-      isAutoReplyActive 
+      isAutoReplyActive
     },
     select: { isAutoReplyActive: true }
   });

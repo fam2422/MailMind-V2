@@ -1,13 +1,9 @@
 const { google } = require('googleapis');
 const prisma = require('../config/prisma');
-const { oauth2Client } = require('../config/google');
-const { decrypt } = require('../utils/encryption');
+const { createOAuth2Client } = require('../config/google');
+const { decryptToken } = require('../utils/encryption');
 const { buildScheduleSummaryPrompt } = require('./ai/prompts');
-
-// Import AI SDKs
-const { GoogleGenerativeAI } = require('@google/generative-ai');
 const { OpenAI } = require('openai');
-const Anthropic = require('@anthropic-ai/sdk');
 
 // Helper ฟังก์ชันหาจุดเริ่มต้น-สิ้นสุดของเวลา
 const getTimeRange = (type) => {
@@ -62,12 +58,15 @@ exports.getOrGenerateSummary = async (userId, type, isForce) => {
     throw new Error('ไม่พบข้อมูลผู้ใช้');
   }
 
+  const refreshToken = decryptToken(user?.refreshToken);
+  const accessToken = decryptToken(user?.accessToken);
+
   const targetModel = user.setting?.defaultModel || process.env.LOCAL_AI_MODEL || 'llama3.1:8b';
   const baseURL = process.env.LOCAL_AI_BASE_URL || 'http://localhost:11434/v1';
 
   // 3. ดึง Google Calendar Events
-  oauth2Client.setCredentials({ refresh_token: user.refreshToken, access_token: user.accessToken });
-  const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
+  const authClient = createOAuth2Client({ refresh_token: refreshToken, access_token: accessToken });
+  const calendar = google.calendar({ version: 'v3', auth: authClient });
   
   const calRes = await calendar.events.list({
     calendarId: 'primary',

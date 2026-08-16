@@ -58,11 +58,38 @@ export default function SettingsPanel() {
 
   // 🌟 State AI Provider & Model (Local AI)
   const [aiProvider, setAiProvider] = React.useState("local");
-  const [localModel, setLocalModel] = React.useState("llama3.1:8b");
+  const [localModel, setLocalModel] = React.useState<string>("");
+  const [availableModels, setAvailableModels] = React.useState<{ id: string; name: string }[]>([]);
+  const [loadingModels, setLoadingModels] = React.useState(false);
 
   // Helper ฟังก์ชันดึงชื่อ Model
   const getCurrentModelName = () => {
-    return localModel || "llama3.1:8b";
+    return localModel || "llama3.1:latest";
+  };
+
+  // ฟังก์ชันดึงรายชื่อโมเดลจาก Ollama Server
+  const fetchAvailableModels = async () => {
+    setLoadingModels(true);
+    try {
+      const token = localStorage.getItem("app_token");
+      if (!token) return;
+
+      const res = await fetch(`${API_BASE}/api/settings/models`, {
+        method: "GET",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data.models && Array.isArray(data.models) && data.models.length > 0) {
+          setAvailableModels(data.models);
+        }
+      }
+    } catch (err) {
+      console.error("Error fetching available models:", err);
+    } finally {
+      setLoadingModels(false);
+    }
   };
 
   // โหลดข้อมูลครั้งแรก
@@ -78,8 +105,14 @@ export default function SettingsPanel() {
 
         if (res.ok) {
           const data = await res.json();
+
+          if (data.setting?.defaultModel) {
+            setLocalModel(data.setting.defaultModel);
+          } else if (data.activeModel) {
+            setLocalModel(data.activeModel);
+          }
           const s = data.setting;
-          
+
           if (s) {
             // โหลดตั้งค่าเดิม
             if (s.startTime) setStartTime(s.startTime);
@@ -88,7 +121,7 @@ export default function SettingsPanel() {
             if (s.timezone) setTimezone(s.timezone);
             if (s.title) setTitle(s.title);
             if (s.tone) setTone(s.tone);
-            
+
             // โหลดข้อมูลส่วนตัว
             if (s.firstName) setFirstName(s.firstName);
             if (s.lastName) setLastName(s.lastName);
@@ -110,6 +143,7 @@ export default function SettingsPanel() {
     };
 
     fetchSettings();
+    fetchAvailableModels();
   }, [API_BASE]);
 
   // ฟังก์ชันทดสอบ Local AI
@@ -159,7 +193,7 @@ export default function SettingsPanel() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           defaultProvider: "local",
           defaultModel: finalModelName,
           startTime,
@@ -200,7 +234,7 @@ export default function SettingsPanel() {
   return (
     <div className="max-w-3xl mx-auto space-y-6 relative pb-10">
       {message.text && (
-        <div className={cn("p-3 rounded-md text-sm font-medium mb-4 text-center sticky top-0 z-10 shadow-sm transition-all", 
+        <div className={cn("p-3 rounded-md text-sm font-medium mb-4 text-center sticky top-0 z-10 shadow-sm transition-all",
           message.type === "success" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
         )}>
           {message.text}
@@ -234,7 +268,7 @@ export default function SettingsPanel() {
             <Label htmlFor="lastName" className="text-xs font-bold text-slate-700">นามสกุล (Last Name)</Label>
             <Input id="lastName" value={lastName} onChange={(e) => setLastName(e.target.value)} placeholder="เช่น ใจดี" className="rounded-xl border-slate-200 text-sm" />
           </div>
-          
+
           <div className="space-y-1.5">
             <Label htmlFor="genderSelect" className="text-xs font-bold text-slate-700">เพศ (ใช้กำหนด ครับ/ค่ะ)</Label>
             <Select value={gender} onValueChange={setGender}>
@@ -361,8 +395,42 @@ export default function SettingsPanel() {
             <Input id="aiProvider" value="Local AI (Ollama Server)" disabled className="bg-slate-50 font-medium rounded-xl text-sm" />
 
             <div className="mt-4 p-4 bg-slate-50/80 border border-slate-200/80 rounded-2xl space-y-2">
-              <Label className="text-xs font-bold text-slate-700">Active Model</Label>
-              <Input value="llama3.1:8b" disabled className="bg-white font-mono text-xs font-bold text-blue-600 rounded-xl" />
+              <div className="flex items-center justify-between">
+                <Label className="text-xs font-bold text-slate-700">Active Model (Ollama)</Label>
+                <button
+                  type="button"
+                  onClick={fetchAvailableModels}
+                  disabled={loadingModels}
+                  title="รีเฟรชรายชื่อโมเดลจาก Ollama"
+                  className="text-[11px] text-slate-500 hover:text-blue-600 flex items-center gap-1 cursor-pointer transition-colors"
+                >
+                  <RefreshCw className={cn("w-3 h-3", loadingModels && "animate-spin")} />
+                  <span>รีเฟรชโมเดล</span>
+                </button>
+              </div>
+
+              {availableModels.length > 0 ? (
+                <Select value={getCurrentModelName()} onValueChange={(val) => setLocalModel(val)}>
+                  <SelectTrigger className="bg-white font-mono text-xs font-bold text-blue-600 rounded-xl h-10 w-full">
+                    <SelectValue placeholder="เลือกโมเดลที่ต้องการ..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableModels.map((m) => (
+                      <SelectItem key={m.id} value={m.id} className="font-mono text-xs">
+                        {m.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <Input
+                  value={getCurrentModelName()}
+                  onChange={(e) => setLocalModel(e.target.value)}
+                  placeholder="เช่น llama3.1:latest"
+                  className="bg-white font-mono text-xs font-bold text-blue-600 rounded-xl"
+                />
+              )}
+
               <p className="text-[11px] text-slate-500">
                 ประมวลผลผ่าน Ollama Server บนเครื่อง (<code>http://localhost:11434/v1</code>)
               </p>
@@ -374,13 +442,15 @@ export default function SettingsPanel() {
             <div className="p-4 bg-slate-50/80 border border-slate-200/80 rounded-2xl space-y-3">
               <div className="flex items-center gap-2">
                 <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
-                <span className="text-xs font-bold text-slate-700">Ollama API (`llama3.1:8b`)</span>
+                <span className="text-xs font-bold text-slate-700">
+                  Ollama API (<code className="text-blue-600">{getCurrentModelName()}</code>)
+                </span>
               </div>
-              <Button 
-                type="button" 
-                variant="secondary" 
+              <Button
+                type="button"
+                variant="secondary"
                 onClick={handleTestKey}
-                disabled={testingKey} 
+                disabled={testingKey}
                 className="w-full text-xs font-bold rounded-xl cursor-pointer"
               >
                 {testingKey ? "กำลังทดสอบการเชื่อมต่อ..." : "ทดสอบการเชื่อมต่อ Local AI"}
@@ -438,4 +508,4 @@ export default function SettingsPanel() {
       </div>
     </div>
   );
-}
+}

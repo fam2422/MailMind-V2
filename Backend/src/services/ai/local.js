@@ -10,7 +10,7 @@ const getClient = () => {
 };
 
 const getModel = (modelName) => {
-  return modelName || process.env.LOCAL_AI_MODEL || 'llama3.1:8b';
+  return modelName || process.env.LOCAL_AI_MODEL || 'llama3.1:latest';
 };
 
 const parseJsonFromLlm = (text) => {
@@ -54,6 +54,31 @@ const parseJsonFromLlm = (text) => {
   }
 };
 
+const formatWorkDays = (workDays) => {
+  if (!workDays) return 'วันจันทร์ ถึง วันศุกร์';
+  if (typeof workDays === 'string') return workDays;
+  if (Array.isArray(workDays)) {
+    const dayMap = {
+      mon: 'จันทร์',
+      tue: 'อังคาร',
+      wed: 'พุธ',
+      thu: 'พฤหัสบดี',
+      fri: 'ศุกร์',
+      sat: 'เสาร์',
+      sun: 'อาทิตย์'
+    };
+    if (workDays.length === 5 && ['mon', 'tue', 'wed', 'thu', 'fri'].every(d => workDays.includes(d))) {
+      return 'วันจันทร์ ถึง วันศุกร์';
+    }
+    if (workDays.length === 7) {
+      return 'ทุกวัน';
+    }
+    const thaiDays = workDays.map(d => dayMap[d.toLowerCase()] || d).filter(Boolean);
+    return thaiDays.length > 0 ? `วัน${thaiDays.join(', วัน')}` : 'วันจันทร์ ถึง วันศุกร์';
+  }
+  return 'วันจันทร์ ถึง วันศุกร์';
+};
+
 exports.testKey = async (apiKey, modelName) => {
   try {
     const openai = getClient();
@@ -65,6 +90,9 @@ exports.testKey = async (apiKey, modelName) => {
     if (response?.choices?.length > 0) return true;
     throw new Error('Invalid response from Local AI Server');
   } catch (error) {
+    if (error.code === 'ECONNREFUSED' || error.message?.includes('ECONNREFUSED')) {
+      throw new Error('ไม่สามารถเชื่อมต่อกับ Ollama Server ได้ กรุณาตรวจสอบว่าเปิด ollama serve ที่ port 11434 หรือยัง');
+    }
     throw new Error(error.message || 'Cannot connect to Local AI Server (Ollama)');
   }
 };
@@ -163,9 +191,9 @@ exports.draftReplyWithCalendar = async (
     const signatureText = userSetting?.signature || 'ขอแสดงความนับถือ';
     const fullSignature = `\n\n${signatureText}\n${fullName}${position}`;
 
-    const startWork = userSetting?.workStartTime || '09:00';
-    const endWork = userSetting?.workEndTime || '17:00';
-    const workDays = userSetting?.workDays || 'วันจันทร์ ถึง วันศุกร์';
+    const startWork = userSetting?.startTime || userSetting?.workStartTime || '09:00';
+    const endWork = userSetting?.endTime || userSetting?.workEndTime || '17:00';
+    const workDays = formatWorkDays(userSetting?.workDays);
     const workingHours = `${workDays}, เวลา ${startWork} น. - ${endWork} น.`;
 
     const prompt = buildDraftPrompt(

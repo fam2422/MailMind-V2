@@ -21,5 +21,6 @@ router.delete('/key/:provider', verifyToken, deleteApiKey);
 router.post('/test-key', verifyToken, testApiKey);
 router.patch('/toggle-cron', verifyToken, toggleCronActive);
 router.get('/status', verifyToken, checkSetupStatus);
+router.get('/models', verifyToken, getModelsList);
 router.post('/models', verifyToken, getModelsList);
 module.exports = router;
