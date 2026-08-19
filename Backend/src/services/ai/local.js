@@ -197,8 +197,17 @@ exports.draftReplyWithCalendar = async (
     const openai = getClient();
     const model = getModel(modelName);
 
-    // 1. วิเคราะห์ตารางเวลาแบบ Deterministic ผ่าน Scheduler Engine
-    const scheduleAnalysis = analyzeSlotAvailability(extractedData, existingEvents, userSetting);
+    // 1. วิเคราะห์ตารางเวลาเฉพาะเมื่อเป็นการนัดหมาย
+    let scheduleAnalysis = {
+      actionType: 'GENERAL_REPLY',
+      reason: 'อีเมลทั่วไป ไม่พบข้อมูลการนัดหมาย',
+      suggestedSlots: [],
+      isAvailable: false,
+    };
+
+    if (extractedData?.isAppointment) {
+      scheduleAnalysis = analyzeSlotAvailability(extractedData, existingEvents, userSetting);
+    }
 
     // 2. จัดเตรียม Context สรรพนาม ลายเซ็น และเวลางาน
     let pronoun = 'ฉัน';

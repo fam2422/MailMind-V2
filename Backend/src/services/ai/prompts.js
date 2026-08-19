@@ -59,6 +59,48 @@ exports.buildDraftPrompt = ({
   fullSignature,
   workingHours,
 }) => {
+  // 1. กรณีไม่ใช่การนัดหมาย (General Email / Non-Appointment)
+  if (!extractedData?.isAppointment) {
+    return `
+You are an AI executive personal assistant drafting a professional reply email on behalf of the user.
+
+USER PROFILE & TONE CONTEXT:
+- Pronoun for user: ${pronoun}
+- Polite ending particle: ${politeParticle}
+- Tone style: ${tone}
+
+TASK:
+- The incoming email is a GENERAL communication (NOT an appointment, meeting request, or scheduling discussion).
+- Understand the context, topic, question, or purpose of the sender's email.
+- Draft an appropriate, concise, polite, and helpful reply addressing the sender's message naturally.
+- DO NOT mention appointments, meetings, calendar slots, or availability.
+
+ORIGINAL EMAIL THREAD CONTENT:
+"""
+${emailText}
+"""
+
+DRAFTING GUIDELINES (STRICT):
+1. Write the entire email in natural, grammatically correct THAI.
+2. Must use the pronoun "${pronoun}" and polite particles "${politeParticle}".
+3. Structure the email properly:
+   - Polite Salutation / Greeting
+   - Context acknowledgement and direct, helpful response
+   - Polite closing remark
+4. MUST append the following exact signature at the end of the email:
+${fullSignature}
+
+OUTPUT FORMAT:
+Return a valid JSON object:
+{
+  "actionType": "GENERAL_REPLY",
+  "reasoning": "ตอบกลับอีเมลทั่วไปตามบริบทของข้อความ",
+  "draftMessage": "ข้อความร่างอีเมลภาษาไทยฉบับเต็ม..."
+}
+`.trim();
+  }
+
+  // 2. กรณีเป็นการนัดหมาย (Appointment / Rescheduling)
   const isAccept = scheduleAnalysis.actionType === 'ACCEPT';
 
   let decisionInstructions = '';
