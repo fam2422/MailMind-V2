@@ -14,7 +14,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import { User, Clock, Cpu, MessageSquare, Sparkles, CheckCircle2, RefreshCw } from "lucide-react";
+import { User, Clock, Cpu, MessageSquare, RefreshCw } from "lucide-react";
 
 const weekDays = [
   { key: "mon", label: "จันทร์" },
@@ -34,11 +34,8 @@ export default function SettingsPanel() {
   const [saving, setSaving] = React.useState(false);
   const [message, setMessage] = React.useState({ text: "", type: "" });
 
-  // State API Key และปุ่ม Test / Delete
-  const [configuredKeys, setConfiguredKeys] = React.useState<Record<string, boolean>>({});
-  const [apiKeyInput, setApiKeyInput] = React.useState("");
+  // State การทดสอบ Local AI
   const [testingKey, setTestingKey] = React.useState(false);
-  const [deletingKey, setDeletingKey] = React.useState(false);
   const [testResult, setTestResult] = React.useState({ text: "", type: "" });
 
   // State การตั้งค่าทั่วไป
@@ -56,8 +53,7 @@ export default function SettingsPanel() {
   const [position, setPosition] = React.useState("");
   const [signature, setSignature] = React.useState("ขอแสดงความนับถือ");
 
-  // 🌟 State AI Provider & Model (Local AI)
-  const [aiProvider, setAiProvider] = React.useState("local");
+  // 🌟 State AI Model (Local AI)
   const [localModel, setLocalModel] = React.useState<string>("");
   const [availableModels, setAvailableModels] = React.useState<{ id: string; name: string }[]>([]);
   const [loadingModels, setLoadingModels] = React.useState(false);
@@ -68,7 +64,7 @@ export default function SettingsPanel() {
   };
 
   // ฟังก์ชันดึงรายชื่อโมเดลจาก Ollama Server
-  const fetchAvailableModels = async () => {
+  const fetchAvailableModels = React.useCallback(async () => {
     setLoadingModels(true);
     try {
       const token = localStorage.getItem("app_token");
@@ -90,7 +86,7 @@ export default function SettingsPanel() {
     } finally {
       setLoadingModels(false);
     }
-  };
+  }, [API_BASE]);
 
   // โหลดข้อมูลครั้งแรก
   React.useEffect(() => {
@@ -131,9 +127,6 @@ export default function SettingsPanel() {
 
             if (s.defaultModel) setLocalModel(s.defaultModel);
           }
-          if (data.configuredKeys) {
-            setConfiguredKeys(data.configuredKeys);
-          }
         }
       } catch (error) {
         console.error("Error fetching settings:", error);
@@ -144,7 +137,7 @@ export default function SettingsPanel() {
 
     fetchSettings();
     fetchAvailableModels();
-  }, [API_BASE]);
+  }, [API_BASE, fetchAvailableModels]);
 
   // ฟังก์ชันทดสอบ Local AI
   const handleTestKey = async () => {

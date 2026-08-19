@@ -1,3 +1,4 @@
+import DOMPurify from 'isomorphic-dompurify'
 import * as React from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
@@ -44,10 +45,10 @@ export default function MessageCard({ message, isMain = false }: { message: Thre
       {/* ✅ ส่วนแสดงผลอีเมล */}
       <div className="overflow-x-auto text-gray-800">
         {isHTML(content) ? (
-          // ถ้าเป็น HTML ให้เรนเดอร์แท็กรูปภาพและตารางออกมา
+          // ถ้าเป็น HTML ให้ Sanitize ก่อนเรนเดอร์แท็กรูปภาพและตารางออกมา
           <div 
             className="email-html-content text-[14px] leading-relaxed"
-            dangerouslySetInnerHTML={{ __html: content }} 
+            dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(content) }} 
           />
         ) : (
           // ถ้าเป็นแค่ Text ธรรมดา ให้เว้นบรรทัดตามเดิม

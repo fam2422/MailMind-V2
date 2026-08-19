@@ -2,9 +2,15 @@ const crypto = require('crypto');
 
 const ALGORITHM = 'aes-256-gcm';
 
+let warnedMissingSecret = false;
+
 // ดึงหรือแปลง Secret Key ให้มีความยาว 32 bytes (256 bits) เสมอด้วย SHA-256
 const getSecretKey = () => {
   const secret = process.env.ENCRYPTION_SECRET || process.env.JWT_SECRET || 'mailmind-default-fallback-key-32b!';
+  if (!process.env.ENCRYPTION_SECRET && !warnedMissingSecret) {
+    console.warn('⚠️ [SECURITY WARNING] ENCRYPTION_SECRET is not set in environment variables. Using fallback key. Please configure ENCRYPTION_SECRET in .env for production security.');
+    warnedMissingSecret = true;
+  }
   return crypto.createHash('sha256').update(String(secret)).digest();
 };
 

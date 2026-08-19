@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { SideNavbar } from "@/components/SideNavbar";
 import { useAuth } from "@/provider/AuthProvider";
 import EmailList from "@/components/EmailList";
-import { Inbox, Sparkles } from "lucide-react";
+import { Inbox } from "lucide-react";
 
 export default function InboxPage() {
   const { user, loading } = useAuth();

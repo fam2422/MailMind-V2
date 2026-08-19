@@ -14,7 +14,6 @@ import { Label } from '@/components/ui/label'
 import { Send, Sparkles } from 'lucide-react'
 import MessageCard from './MessageCard'
 import type { ThreadMessage } from '@/lib/type'
-import { headers } from 'next/dist/server/request/headers'
 
 export default function ThreadDialog({
   open,
@@ -42,11 +41,15 @@ export default function ThreadDialog({
 
   const API_BASE = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5000'
 
+  const onEmailUpdateRef = React.useRef(onEmailUpdate)
+  React.useEffect(() => {
+    onEmailUpdateRef.current = onEmailUpdate
+  }, [onEmailUpdate])
+
   // 🌟 1. โหลดข้อมูล + ทำให้เมลอ่านแล้ว (Mark as Read)
   React.useEffect(() => {
     if (!open || !threadId) return
     const controller = new AbortController()
-    let marked = false
 
     ;(async () => {
       try {
@@ -57,14 +60,14 @@ export default function ThreadDialog({
         setActionError(null)
 
         const token = localStorage.getItem('app_token')
-        const headers = {
+        const reqHeaders = {
           'Content-Type': 'application/json',
           ...(token ? { Authorization: `Bearer ${token}` } : {})
         }
 
         const res = await fetch(`${API_BASE}/api/threads/${threadId}`, {
           signal: controller.signal,
-          headers,
+          headers: reqHeaders,
           cache: 'no-store',
         })
 
@@ -77,29 +80,28 @@ export default function ThreadDialog({
         setMessages(data.items ?? [])
 
         // ✅ เรียก API mark-read เฉพาะครั้งแรก
-        if (!marked && mainId && onEmailUpdate) {
-          marked = true
-          onEmailUpdate(mainId, { isRead: true })
+        if (mainId && onEmailUpdateRef.current) {
+          onEmailUpdateRef.current(mainId, { isRead: true })
           fetch(`${API_BASE}/api/emails/mark-read`, {
             method: 'POST',
-            headers,
+            headers: reqHeaders,
             body: JSON.stringify({ messageId: mainId })
           }).catch(() => {})
         }
 
       } catch (e: unknown) {
-  const msg =
-    typeof e === 'object' && e !== null && 'message' in e
-      ? (e as { message: string }).message
-      : String(e)
-  if ((e as { name?: string })?.name !== 'AbortError') setError(msg)
-}  finally {
+        const msg =
+          typeof e === 'object' && e !== null && 'message' in e
+            ? (e as { message: string }).message
+            : String(e)
+        if ((e as { name?: string })?.name !== 'AbortError') setError(msg)
+      } finally {
         setLoading(false)
       }
     })()
 
     return () => controller.abort()
-  }, [open, threadId, mainId]) // << ลด dependency
+  }, [open, threadId, mainId, API_BASE])
 
   const main = messages.find((m) => m.id === mainId) ?? (messages.length ? messages[messages.length - 1] : undefined)
   const rest = messages.filter((m) => m.id !== main?.id)

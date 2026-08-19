@@ -131,7 +131,7 @@ JWT_SECRET=your_jwt_secret_key
 ENCRYPTION_SECRET=your_32_byte_aes_256_secret_key
 
 # PostgreSQL Connection
-DATABASE_URL="postgresql://postgres:2422@localhost:5432/mail-mind-v2?schema=public"
+DATABASE_URL="postgresql://mailmind_user:mailmind_password@localhost:5432/mailmind_db?schema=public"
 
 # Local AI (Ollama) Settings
 LOCAL_AI_BASE_URL="http://localhost:11434/v1"
@@ -187,23 +187,31 @@ npx prisma migrate dev --name init
 ### Authentication
 - `GET /api/auth/google` – Redirect to Google OAuth consent screen.
 - `GET /api/auth/google/callback` – Google OAuth callback handler.
-- `POST /api/auth/logout` – Clear user session and cookies.
-- `GET /api/auth/me` – Get current logged-in user profile.
+- `GET /api/user/me` – Get current logged-in user profile.
 
 ### Settings & Local AI
 - `GET /api/settings` – Get user application settings.
 - `PUT /api/settings` – Update user settings (working hours, tone, signature).
 - `POST /api/settings/test-key` – Test connection to Local AI Server (Ollama).
+- `GET /api/settings/models` – Fetch available models from Ollama server.
+- `PATCH /api/settings/toggle-cron` – Toggle automated background email processing.
 
-### Emails & Drafts
+### Emails & Threads
 - `GET /api/emails` – Fetch recent emails from Gmail.
+- `POST /api/emails/sync` – Manually trigger immediate email sync & draft generation.
+- `POST /api/emails/mark-read` – Mark an email message as read.
+- `GET /api/threads/:threadId` – Get full email thread messages.
+- `POST /api/emails/threads/:threadId` – Send a direct reply to an email thread.
+
+### Drafts
 - `GET /api/drafts` – List pending AI-generated drafts (`PENDING`).
-- `POST /api/drafts/:id/send` – Approve draft, send email via Gmail API, and insert event to Google Calendar.
-- `DELETE /api/drafts/:id` – Reject and permanently delete a draft from the database.
+- `POST /api/drafts/generate` – On-demand AI draft generation for a specific thread.
+- `POST /api/drafts/:id/send` – Approve draft, send email via Gmail API, and insert event to Google Calendar (if action is `ACCEPT`).
+- `POST /api/drafts/:id/reject` – Reject and delete a draft from the database.
 
 ### Calendar & Summaries
-- `GET /api/calendar/events` – List upcoming events from Google Calendar.
-- `GET /api/calendar/summary` – Generate AI-powered daily, weekly, or monthly schedule summaries.
+- `GET /api/calendar` – List upcoming events from Google Calendar.
+- `GET /api/summary` – Generate AI-powered daily, weekly, or monthly schedule summaries.
 
 ---
 

@@ -134,9 +134,9 @@ export default function EmailList() {
     fetchEmails(pageHistory[currentIndex]);
   }, [currentIndex, fetchEmails, pageHistory]);
 
-  const handleEmailUpdate = (id: string, patch: Partial<Email>) => {
+  const handleEmailUpdate = useCallback((id: string, patch: Partial<Email>) => {
     setEmails((prev) => prev.map((e) => (e.id === id ? { ...e, ...patch } : e)));
-  };
+  }, []);
 
   const handleNext = () => {
     if (nextPageToken) {

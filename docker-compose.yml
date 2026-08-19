@@ -12,7 +12,6 @@ services:
       - "5432:5432"
     volumes:
       - mailmind_db_data:/var/lib/postgresql/data
-      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql 
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U mailmind_user -d mailmind_db"]
       interval: 5s

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight, Bot, CalendarCheck, Zap, Sparkles, ShieldCheck, CheckCircle2 } from "lucide-react";
+import { ArrowRight, Bot, CalendarCheck, Zap, Sparkles, CheckCircle2 } from "lucide-react";
 import { useAuth } from "@/provider/AuthProvider";
 
 export default function Home() {

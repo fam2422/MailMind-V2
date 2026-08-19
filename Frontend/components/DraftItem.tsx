@@ -4,7 +4,7 @@ import * as React from 'react';
 import DraftDialog from './DraftDialog';
 import { Badge } from '@/components/ui/badge';
 import type { Draft } from './DraftList';
-import { Sparkles, FileText, CheckCircle2, XCircle, Clock } from 'lucide-react';
+import { Sparkles, CheckCircle2, XCircle, Clock } from 'lucide-react';
 
 type DraftItemProps = {
   draft: Draft;

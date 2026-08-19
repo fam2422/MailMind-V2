@@ -54,7 +54,10 @@ exports.getEventsForUser = async (userId) => {
 };
 
 exports.addEventToCalendar = async (calendar, draft, metadata, userTimezone, oauth2Client, userEmail) => {
-  if (!draft.suggestedDate) return;
+  if (draft.actionType !== 'ACCEPT' || !draft.suggestedDate) {
+    console.log(`[CALENDAR] Skipped adding event to calendar. ActionType: ${draft.actionType}, SuggestedDate: ${draft.suggestedDate}`);
+    return null;
+  }
 
   const startTime = new Date(draft.suggestedDate);
   const endTime = new Date(startTime.getTime() + 60 * 60 * 1000); 
@@ -63,6 +66,7 @@ exports.addEventToCalendar = async (calendar, draft, metadata, userTimezone, oau
   let timeZone = 'Asia/Bangkok';
   if (userTimezone === 'asia-tokyo') timeZone = 'Asia/Tokyo';
   else if (userTimezone === 'europe-london') timeZone = 'Europe/London';
+  else if (userTimezone && userTimezone !== 'asia-bangkok') timeZone = userTimezone;
 
   const response = await calendar.events.insert({
     calendarId: 'primary',
@@ -77,7 +81,5 @@ exports.addEventToCalendar = async (calendar, draft, metadata, userTimezone, oau
     }
   });
 
-  const createdEvent = response.data;
-
-  return createdEvent;
+  return response.data;
 };

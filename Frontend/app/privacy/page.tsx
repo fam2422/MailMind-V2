@@ -24,7 +24,7 @@ export default function PrivacyPolicyPage() {
               <ul className="list-disc pl-5 space-y-2">
                 <li><strong>ข้อมูลบัญชีพื้นฐาน:</strong> ชื่อ, ที่อยู่อีเมล, และรูปโปรไฟล์ที่ได้รับอนุญาตผ่านระบบ Google OAuth</li>
                 <li><strong>ข้อมูลการตั้งค่า (User Settings):</strong> รูปแบบการตอบกลับ, ลายเซ็นอีเมล, และเวลาทำการที่คุณกำหนดไว้</li>
-                <li><strong>กุญแจเชื่อมต่อ (API Keys):</strong> คีย์สำหรับเชื่อมต่อกับผู้ให้บริการ AI ซึ่งจะถูกเข้ารหัสขั้นสูงก่อนจัดเก็บ</li>
+                <li><strong>ข้อมูลการยืนยันตัวตน (OAuth Tokens):</strong> โทเค็นสำหรับการเชื่อมต่อ Google API ซึ่งจะถูกเข้ารหัสขั้นสูงก่อนจัดเก็บ</li>
               </ul>
             </section>
 
@@ -38,18 +38,17 @@ export default function PrivacyPolicyPage() {
             </section>
 
             <section>
-              <h2 className="text-lg font-bold text-slate-900 mb-3">3. การแบ่งปันข้อมูลกับบุคคลที่สาม (Data Sharing)</h2>
+              <h2 className="text-lg font-bold text-slate-900 mb-3">3. นโยบายความเป็นส่วนตัวของ AI (Local AI Privacy)</h2>
               <p>
-                เพื่อให้ฟังก์ชันการทำงานของ AI สมบูรณ์ เราจำเป็นต้องส่งเนื้อหาอีเมล (เฉพาะข้อความ) ไปยังผู้ให้บริการปัญญาประดิษฐ์ที่คุณเลือกใช้งาน 
-                (เช่น Google Gemini, OpenAI, Anthropic, OpenRouter หรือ IntelSphere) 
-                เราจะไม่นำข้อมูลอีเมลหรือข้อมูลส่วนบุคคลของคุณไปขาย แลกเปลี่ยน หรือส่งต่อให้บริษัทโฆษณาและบุคคลที่สามอื่นๆ ในทุกกรณี
+                ระบบ MailMind ใช้โมเดล Local Generative AI ที่ทำงานอยู่บนเครื่องของคุณเอง (Ollama Server) 
+                ดังนั้น <strong>ไม่มีการส่งเนื้อหาอีเมล ตารางงาน หรือข้อมูลส่วนตัวของคุณออกไปยังบริการ Cloud ภายนอกหรือบุคคลที่สามใดๆ ทั้งสิ้น</strong>
               </p>
             </section>
 
             <section>
               <h2 className="text-lg font-bold text-slate-900 mb-3">4. การรักษาความปลอดภัยของข้อมูล (Data Security)</h2>
               <p>
-                เราให้ความสำคัญกับความปลอดภัยของข้อมูลคุณอย่างสูงสุด ข้อมูลที่มีความละเอียดอ่อนโดยเฉพาะ <strong>API Key</strong> 
+                เราให้ความสำคัญกับความปลอดภัยของข้อมูลคุณอย่างสูงสุด ข้อมูลที่มีความละเอียดอ่อนโดยเฉพาะ <strong>OAuth Access & Refresh Token</strong> 
                 จะถูกเข้ารหัสผ่านอัลกอริทึมมาตรฐาน <code>AES-256-GCM</code> พร้อมกับ IV และ Auth Tag แยกส่วนกัน ทำให้ไม่สามารถอ่านค่าได้หากไม่มีกุญแจถอดรหัสฝั่งเซิร์ฟเวอร์ 
                 นอกจากนี้ การรับส่งข้อมูลทั้งหมดจะผ่านเครือข่ายที่เข้ารหัส (HTTPS/TLS)
               </p>

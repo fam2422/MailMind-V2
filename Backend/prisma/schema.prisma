@@ -58,7 +58,7 @@ model Draft {
   userId        String
   user          User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   
-  messageId     String       @unique
+  messageId     String
   threadId      String
   subject       String?
   
@@ -74,6 +74,8 @@ model Draft {
 
   createdAt     DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
+
+  @@unique([userId, messageId])
 }
 
 enum SummaryType {

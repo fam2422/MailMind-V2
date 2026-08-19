@@ -144,12 +144,12 @@ export default function LoginPage() {
                   <p className="mt-1">แอปพลิเคชันต้องการสิทธิ์การเข้าถึงแบบอ่านและเขียน (Read & Write) สำหรับ <strong>Gmail</strong> และ <strong>Google Calendar</strong> ของคุณ เพื่อใช้ในการแสดงผลเนื้อหาอีเมลและสร้างกิจกรรมลงปฏิทิน</p>
                 </div>
                 <div>
-                  <h3 className="font-semibold text-slate-800">2. การประมวลผลด้วย AI (AI Processing)</h3>
-                  <p className="mt-1">เนื้อหาอีเมลของคุณจะถูกส่งไปประมวลผลผ่าน API ของผู้ให้บริการ AI ที่คุณเลือก (เช่น Google Gemini, OpenAI, Anthropic หรือ IntelSphere) เพื่อทำการสรุปและร่างข้อความตอบกลับ ข้อมูลของคุณจะไม่ถูกนำไปใช้เพื่อฝึกสอน (Train) โมเดล AI ของระบบเรา</p>
+                  <h3 className="font-semibold text-slate-800">2. การประมวลผลด้วย Local AI (100% Private AI Processing)</h3>
+                  <p className="mt-1">เนื้อหาอีเมลของคุณจะถูกประมวลผลผ่านโมเดล Local Generative AI บนเครื่องของคุณ (Ollama) เพื่อสรุปและร่างข้อความตอบกลับ ข้อมูลทั้งหมดจะคงอยู่บนระบบของคุณอย่างปลอดภัย ไม่มีการส่งข้อมูลอีเมลออกไปยัง Cloud หรือบุคคลที่สาม</p>
                 </div>
                 <div>
-                  <h3 className="font-semibold text-slate-800">3. ความปลอดภัยของ API Key (API Key Security)</h3>
-                  <p className="mt-1">API Key ของผู้ให้บริการ AI ที่คุณกรอกลงในระบบ จะถูกเข้ารหัสความปลอดภัยระดับสูง (AES-256-GCM) ก่อนบันทึกลงฐานข้อมูล และจะไม่ถูกเปิดเผยต่อบุคคลที่สาม</p>
+                  <h3 className="font-semibold text-slate-800">3. ความปลอดภัยของโทเค็น (Token Security)</h3>
+                  <p className="mt-1">OAuth Token สำหรับการเชื่อมต่อ Google API จะถูกเข้ารหัสความปลอดภัยระดับสูง (AES-256-GCM) ก่อนบันทึกลงฐานข้อมูล และจะไม่ถูกเปิดเผยต่อบุคคลภายนอก</p>
                 </div>
                 <div>
                   <h3 className="font-semibold text-slate-800">4. การเพิกถอนสิทธิ์ (Revoking Access)</h3>

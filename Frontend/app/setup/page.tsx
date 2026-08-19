@@ -13,7 +13,7 @@ import {
   SelectItem,
   SelectValue,
 } from "@/components/ui/select";
-import { ArrowRight, Loader2, Cpu, CheckCircle2, RefreshCw, ShieldCheck } from "lucide-react";
+import { ArrowRight, Loader2, Cpu, RefreshCw, ShieldCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export default function SetupPage() {
@@ -31,7 +31,7 @@ export default function SetupPage() {
   const [saving, setSaving] = React.useState(false);
   const [message, setMessage] = React.useState({ text: "", type: "" });
 
-  const fetchAvailableModels = async () => {
+  const fetchAvailableModels = React.useCallback(async () => {
     setLoadingModels(true);
     try {
       const token = localStorage.getItem("app_token");
@@ -56,7 +56,7 @@ export default function SetupPage() {
     } finally {
       setLoadingModels(false);
     }
-  };
+  }, [API_BASE, localModel]);
 
   React.useEffect(() => {
     if (!authLoading && !user) {
@@ -89,7 +89,7 @@ export default function SetupPage() {
       checkExistingSetup();
       fetchAvailableModels();
     }
-  }, [user, authLoading, router, API_BASE]);
+  }, [user, authLoading, router, API_BASE, fetchAvailableModels]);
 
   const handleTestConnection = async () => {
     setTestingKey(true);

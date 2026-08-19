@@ -3,7 +3,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import DraftItem from './DraftItem';
 import { useAuth } from '@/provider/AuthProvider';
-import { Sparkles } from 'lucide-react';
 
 export interface Draft {
   id: string;

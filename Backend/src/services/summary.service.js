@@ -8,24 +8,26 @@ const { OpenAI } = require('openai');
 // Helper ฟังก์ชันหาจุดเริ่มต้น-สิ้นสุดของเวลา
 const getTimeRange = (type) => {
   const now = new Date();
-  const start = new Date(now);
-  const end = new Date(now);
+  const year = now.getFullYear();
+  const month = now.getMonth();
+  const date = now.getDate();
+
+  let start;
+  let end;
 
   if (type === 'DAILY') {
-    start.setHours(0, 0, 0, 0);
-    end.setHours(23, 59, 59, 999);
+    start = new Date(year, month, date, 0, 0, 0, 0);
+    end = new Date(year, month, date, 23, 59, 59, 999);
   } else if (type === 'WEEKLY') {
-    const day = now.getDay() || 7; 
-    start.setDate(now.getDate() - day + 1);
-    start.setHours(0, 0, 0, 0);
-    end.setDate(start.getDate() + 6);
-    end.setHours(23, 59, 59, 999);
+    const day = now.getDay() || 7; // 1 (Mon) - 7 (Sun)
+    start = new Date(year, month, date - day + 1, 0, 0, 0, 0);
+    end = new Date(year, month, date - day + 7, 23, 59, 59, 999);
   } else if (type === 'MONTHLY') {
-    start.setDate(1);
-    start.setHours(0, 0, 0, 0);
-    end.setMonth(now.getMonth() + 1);
-    end.setDate(0);
-    end.setHours(23, 59, 59, 999);
+    start = new Date(year, month, 1, 0, 0, 0, 0);
+    end = new Date(year, month + 1, 0, 23, 59, 59, 999);
+  } else {
+    start = new Date(year, month, date, 0, 0, 0, 0);
+    end = new Date(year, month, date, 23, 59, 59, 999);
   }
   return { timeMin: start, timeMax: end };
 };

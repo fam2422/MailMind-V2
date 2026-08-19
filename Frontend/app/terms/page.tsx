@@ -38,10 +38,10 @@ export default function TermsOfUsePage() {
             </section>
 
             <section>
-              <h2 className="text-lg font-bold text-slate-900 mb-3">3. การประมวลผลด้วย AI (AI Processing)</h2>
+              <h2 className="text-lg font-bold text-slate-900 mb-3">3. การประมวลผลด้วย Local AI (100% Private AI Processing)</h2>
               <p>
-                เพื่อให้ระบบสามารถสรุป สกัดตารางนัดหมาย และร่างอีเมลตอบกลับได้ ข้อมูลอีเมลที่ถูกเลือกจะถูกส่งผ่าน API 
-                ไปยังผู้ให้บริการ Generative AI ที่คุณเป็นผู้เลือก (เช่น Google Gemini, OpenAI, Anthropic, OpenRouter หรือ IntelSphere) 
+                เพื่อให้ระบบสามารถสรุป สกัดตารางนัดหมาย และร่างอีเมลตอบกลับได้ ข้อมูลอีเมลจะถูกประมวลผลผ่านโมเดล Local Generative AI 
+                ที่ทำงานบนเครื่องของผู้ใช้ (เช่น llama3.1 ผ่าน Ollama Server) โดยไม่มีการส่งข้อมูลอีเมลออกสู่ระบบภายนอกหรือคลาวด์สาธารณะ
               </p>
               <p className="mt-2 font-medium text-slate-700">
                 การปฏิเสธความรับผิดชอบ: ระบบ AI อาจให้ข้อมูลที่ไม่แม่นยำหรือผิดพลาดได้ (Hallucination) 
@@ -50,10 +50,10 @@ export default function TermsOfUsePage() {
             </section>
 
             <section>
-              <h2 className="text-lg font-bold text-slate-900 mb-3">4. ความปลอดภัยของข้อมูล (Security & API Keys)</h2>
+              <h2 className="text-lg font-bold text-slate-900 mb-3">4. ความปลอดภัยของข้อมูล (Data Security)</h2>
               <p>
-                API Key ที่คุณนำมากรอกในระบบเพื่อใช้งานโมเดล AI จะถูกเข้ารหัสผ่านอัลกอริทึมมาตรฐานขั้นสูง (AES-256-GCM) 
-                ก่อนบันทึกลงฐานข้อมูล เราไม่มีนโยบายนำ API Key ของคุณไปใช้เพื่อการอื่นนอกเหนือจากการทำงานของระบบที่คุณสั่งการ 
+                Google OAuth Access Token และ Refresh Token ของคุณจะถูกเข้ารหัสผ่านอัลกอริทึมมาตรฐานขั้นสูง (AES-256-GCM) 
+                ก่อนบันทึกลงฐานข้อมูล เราไม่มีนโยบายนำโทเค็นของคุณไปใช้เพื่อการอื่นนอกเหนือจากการทำงานของระบบที่คุณสั่งการ 
                 และจะไม่แบ่งปันข้อมูลนี้ให้กับบุคคลที่สาม
               </p>
             </section>

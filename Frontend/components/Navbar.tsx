@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useAuth } from '@/provider/AuthProvider';
 import { useState, useEffect } from 'react';
 import { usePathname } from 'next/navigation';
-import { Sparkles, LogOut, Bot, ShieldCheck } from 'lucide-react';
+import { Sparkles, LogOut, Bot } from 'lucide-react';
 
 export default function Navbar() {
   const { user, logout } = useAuth();
