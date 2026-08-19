@@ -5,31 +5,13 @@ const { createOAuth2Client } = require('../config/google');
 const notificationService = require('../services/notification.service');
 const { decryptToken } = require('../utils/encryption');
 const { APPOINTMENT_KEYWORDS } = require('../config/constants');
-const { sanitizeEmailText } = require('../utils/emailSanitizer');
+const { getEmailText, sanitizeEmailText, formatThreadForAi } = require('../utils/emailSanitizer');
 const pLimit = require('p-limit');
 
 const localAiService = require('../services/ai/local');
 
 let isCronRunning = false;
 const limit = pLimit(3);
-
-const getEmailText = (payload) => {
-  let text = '';
-  if (!payload) return text;
-
-  if (payload.parts) {
-    payload.parts.forEach((part) => {
-      if (part.mimeType === 'text/plain' && part.body.data) {
-        text += Buffer.from(part.body.data, 'base64').toString('utf8');
-      } else if (part.parts) {
-        text += getEmailText(part);
-      }
-    });
-  } else if (payload.body && payload.body.data) {
-    text = Buffer.from(payload.body.data, 'base64').toString('utf8');
-  }
-  return text;
-};
 
 const processUserEmails = async (user) => {
   const logPrefix = `[${user.email}]`;
@@ -49,7 +31,7 @@ const processUserEmails = async (user) => {
       return;
     }
 
-    const selectedModel = user.setting.defaultModel || process.env.LOCAL_AI_MODEL || 'llama3.1:8b';
+    const selectedModel = user.setting.defaultModel || process.env.LOCAL_AI_MODEL || 'llama3.1:latest';
     const aiService = localAiService;
 
     const userOauth2Client = createOAuth2Client({
@@ -118,18 +100,11 @@ const processUserEmails = async (user) => {
 
         if (hasKeyword) {
           const threadDetail = await gmail.users.threads.get({ userId: 'me', id: threadId });
-          let fullThreadText = '';
-          threadDetail.data.messages.forEach((tMsg) => {
-            const tText = sanitizeEmailText(getEmailText(tMsg.payload));
-            const tHeaders = tMsg.payload.headers;
-            const tFrom =
-              tHeaders.find((h) => h.name.toLowerCase() === 'from')?.value || 'Unknown';
-            fullThreadText += `\n--- Email From: ${tFrom} ---\n${tText.trim()}\n`;
-          });
+          const { formattedThread, latestFrom } = formatThreadForAi(threadDetail.data.messages || []);
 
-          console.log(`${logPrefix} [AI] Analyzing with Local AI (Model: ${selectedModel})...`);
+          console.log(`${logPrefix} [AI] Analyzing thread with Local AI (Model: ${selectedModel})...`);
 
-          const aiResult = await aiService.extractAppointment(null, fullThreadText, selectedModel);
+          const aiResult = await aiService.extractAppointment(null, formattedThread, selectedModel);
 
           if (aiResult.isAppointment) {
             console.log(
@@ -159,7 +134,7 @@ const processUserEmails = async (user) => {
 
             const draftResult = await aiService.draftReplyWithCalendar(
               null,
-              fullThreadText,
+              formattedThread,
               aiResult,
               existingEvents,
               user.setting,
@@ -168,6 +143,15 @@ const processUserEmails = async (user) => {
 
             if (draftResult.draftMessage) {
               const eventDate = aiResult.date ? new Date(aiResult.date) : null;
+
+              // ลบดราฟ PENDING เดิมใน thread เดียวกันออก (ถ้ามี) เพื่อให้ผู้ใช้ได้รับดราฟฉบับล่าสุดของการตอบกลับ
+              await prisma.draft.deleteMany({
+                where: {
+                  userId: user.id,
+                  threadId: threadId,
+                  status: 'PENDING',
+                },
+              });
 
               await prisma.draft.create({
                 data: {
@@ -187,7 +171,7 @@ const processUserEmails = async (user) => {
               await notificationService.sendPendingDraftNotification(
                 userOauth2Client,
                 user.email,
-                { from: msgFrom, subject: cleanSubject },
+                { from: latestFrom || msgFrom, subject: cleanSubject },
                 eventDate
               );
               console.log(

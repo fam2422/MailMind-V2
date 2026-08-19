@@ -6,22 +6,27 @@ exports.buildExtractionPrompt = (emailText, today) => {
 You are an executive AI assistant specialized in analyzing email communications and extracting appointment details.
 Current Date Context: Today is ${today}. Use this to resolve relative dates like "พรุ่งนี้", "สัปดาห์หน้า", "วันศุกร์นี้".
 
+CRITICAL RULES FOR THREADS & RESCHEDULING RESOLUTION (HIGHEST PRIORITY):
+1. In an email thread with multiple messages, you MUST ALWAYS extract the appointment details (Date, Time, Duration, Location, Subject) from the **LATEST (NEWEST) MESSAGE / REPLY** at the bottom of the thread.
+2. If earlier messages proposed an initial date (e.g. 17 August), but subsequent replies or the latest reply reschedules, updates, counter-proposes, or agrees to a new date (e.g. "ถ้าอย่างนั้นขอเป็นวันจันทร์ที่ 24 สิงหาคม 2569 เวลา 10:00 - 11:00 น.", "งั้นขอเลื่อนเป็น...", "ขอเปลี่ยนเป็น..."), you MUST EXTRACT THE NEW DATE (24 August 2026) and COMPLETELY DISREGARD all old, outdated, or superseded dates from previous messages.
+3. The latest message represents the ACTIVE and CURRENT intent of the conversation.
+
 CRITICAL RULES FOR APPOINTMENT CLASSIFICATION:
-- Set "isAppointment": true if the email mentions ANY meeting, invitation, appointment, request to discuss, call, or event proposal (e.g. "ชวนไป...", "นัดพบ...", "ประชุม...", "ว่างไหม...", "สะดวกคุยไหม...", "ขอปรึกษา...").
+- Set "isAppointment": true if the email thread (especially the latest reply) mentions ANY meeting, invitation, appointment, follow-up call, rescheduling, or event proposal (e.g. "ชวนไป...", "นัดพบ...", "ประชุม...", "ว่างไหม...", "สะดวกคุยไหม...", "ขอปรึกษา...", "ขอเลื่อนเป็น...").
 - Set "isAppointment": false ONLY if the email is purely promotional newsletter, system automated receipt, spam, or contains no request/intent to meet.
 
 CRITICAL RULES FOR DATES & TIMEZONES:
 1. You MUST convert any Thai Buddhist Era (B.E. / พ.ศ.) year found in the text or context into the Gregorian calendar (A.D. / ค.ศ.) before outputting.
    Formula: Gregorian Year = Buddhist Year - 543 (e.g. 2569 becomes 2026).
    NEVER output a year greater than 2100.
-2. All extracted dates MUST strictly end with the Thailand timezone offset "+07:00" (e.g., "2026-08-20T10:00:00+07:00"). NEVER use "Z" (UTC).
-3. If a specific time is mentioned (e.g., "10:00 น.", "บ่ายสอง", "14.30"), set "isTimeSpecified": true. If only a date is mentioned without a specific time, set "isTimeSpecified": false and set the time in the date string to "09:00:00+07:00".
+2. All extracted dates MUST strictly end with the Thailand timezone offset "+07:00" (e.g., "2026-08-24T10:00:00+07:00"). NEVER use "Z" (UTC).
+3. If a specific time is mentioned (e.g., "10:00 น.", "บ่ายสอง", "14.30", "10:00 - 11:00 น."), set "isTimeSpecified": true. If only a date is mentioned without a specific time, set "isTimeSpecified": false and set the time in the date string to "09:00:00+07:00".
 
 DURATION & LOCATION EXTRACTION:
-- "durationMinutes": estimate duration in minutes if mentioned (e.g., "30 นาที" -> 30, "2 ชั่วโมง" -> 120, "ครึ่งชั่วโมง" -> 30). Default to 60 if not specified.
+- "durationMinutes": estimate duration in minutes if mentioned (e.g., "30 นาที" -> 30, "10:00 - 11:00 น." -> 60, "2 ชั่วโมง" -> 120, "ครึ่งชั่วโมง" -> 30). Default to 60 if not specified.
 - "location": extract physical location, room, or online link/platform (e.g. "Google Meet", "Zoom", "ห้องประชุม 301", "สำนักงาน").
 
-Email Content:
+Email Thread Content:
 """
 ${emailText}
 """
@@ -59,9 +64,9 @@ exports.buildDraftPrompt = ({
   let decisionInstructions = '';
   if (isAccept) {
     decisionInstructions = `
-DECISION: ACCEPT THE APPOINTMENT
+DECISION: ACCEPT THE APPOINTMENT / CONFIRM RESCHEDULED TIME
 - The requested time (${scheduleAnalysis.requestedTimeThai || extractedData.date}) is AVAILABLE and strictly within working hours.
-- Draft a warm, polite email confirming your availability and attendance for this appointment.
+- Draft a warm, polite email confirming your availability and attendance for this appointment (acknowledging the agreed upon time).
 - Confirm the location/channel if mentioned (${extractedData.location || 'ตามที่เสนอ'}).
 `;
   } else {
@@ -97,7 +102,7 @@ APPOINTMENT ANALYSIS:
 
 ${decisionInstructions}
 
-ORIGINAL EMAIL CONTENT:
+ORIGINAL EMAIL THREAD CONTENT:
 """
 ${emailText}
 """

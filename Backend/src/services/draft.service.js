@@ -2,7 +2,7 @@ const { google } = require('googleapis');
 const prisma = require('../config/prisma');
 const { createOAuth2Client } = require('../config/google');
 const { decryptToken } = require('../utils/encryption');
-const { sanitizeEmailText } = require('../utils/emailSanitizer');
+const { formatThreadForAi } = require('../utils/emailSanitizer');
 
 // ดึง AI Services
 const localAiService = require('./ai/local');
@@ -10,24 +10,6 @@ const localAiService = require('./ai/local');
 // ดึง Google Services
 const gmailService = require('./gmail.service');
 const calendarService = require('./calendar.service');
-
-// Helper: แกะข้อความอีเมล
-const getEmailText = (payload) => {
-  let text = '';
-  if (!payload) return text;
-  if (payload.parts) {
-    payload.parts.forEach((part) => {
-      if (part.mimeType === 'text/plain' && part.body.data) {
-        text += Buffer.from(part.body.data, 'base64').toString('utf8');
-      } else if (part.parts) {
-        text += getEmailText(part);
-      }
-    });
-  } else if (payload.body && payload.body.data) {
-    text = Buffer.from(payload.body.data, 'base64').toString('utf8');
-  }
-  return text;
-};
 
 exports.generateDraft = async (userId, threadId) => {
   // 1. ดึงข้อมูลและตรวจสอบ
@@ -39,7 +21,7 @@ exports.generateDraft = async (userId, threadId) => {
   const refreshToken = decryptToken(user?.refreshToken);
   const accessToken = decryptToken(user?.accessToken);
 
-  const targetModel = user?.setting?.defaultModel || process.env.LOCAL_AI_MODEL || 'llama3.1:8b';
+  const targetModel = user?.setting?.defaultModel || process.env.LOCAL_AI_MODEL || 'llama3.1:latest';
   const activeAiService = localAiService;
 
   // 2. ดึงอีเมลจาก Gmail
@@ -48,18 +30,12 @@ exports.generateDraft = async (userId, threadId) => {
   const calendar = google.calendar({ version: 'v3', auth: authClient });
 
   const threadDetail = await gmail.users.threads.get({ userId: 'me', id: threadId });
-  let fullThreadText = '';
-  threadDetail.data.messages.forEach((tMsg) => {
-    const tText = sanitizeEmailText(getEmailText(tMsg.payload));
-    const headers = tMsg.payload.headers;
-    const fromHeader = headers.find((h) => h.name.toLowerCase() === 'from')?.value || 'Unknown';
-    fullThreadText += `\n--- Email From: ${fromHeader} ---\n${tText.trim()}\n`;
-  });
+  const { formattedThread } = formatThreadForAi(threadDetail.data.messages || []);
 
   console.log(`\n[AI] 🤖 Generating draft using Local AI | Model: ${targetModel}\n`);
 
-  // 3. สั่ง AI สกัดข้อมูลนัดหมาย
-  const aiResult = await activeAiService.extractAppointment(null, fullThreadText, targetModel);
+  // 3. สั่ง AI สกัดข้อมูลนัดหมายจาก Thread โดยเน้นย้ำข้อความล่าสุด
+  const aiResult = await activeAiService.extractAppointment(null, formattedThread, targetModel);
 
   // 4. ดึงข้อมูล Google Calendar (ล่วงหน้า 14 วันเพื่อครอบคลุมการหาช่วงเวลาว่าง)
   let existingEvents = [];
@@ -85,7 +61,7 @@ exports.generateDraft = async (userId, threadId) => {
   // 5. ร่างอีเมลด้วย Deterministic Scheduling Engine + Local AI
   const draftResult = await activeAiService.draftReplyWithCalendar(
     null,
-    fullThreadText,
+    formattedThread,
     aiResult,
     existingEvents,
     user?.setting,
