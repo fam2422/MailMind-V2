@@ -245,28 +245,50 @@ exports.getOriginalEmailMetadata = async (gmail, messageId) => {
   return { fromEmail, cleanEmail, originalMessageId, originalReferences, subject };
 };
 
-exports.sendEmailReply = async (gmail, draft, metadata, editedReply) => {
-  const replySubject = metadata.subject.toLowerCase().startsWith('re:') 
-    ? metadata.subject 
-    : `Re: ${metadata.subject || draft.subject}`;
+exports.sendEmailReply = async (gmail, draft, metadata, editedReply, observability) => {
+  const logger = observability?.child ? observability.child({}, 'GMAIL') : null;
+  const startedAt = Date.now();
+  try {
+    const replySubject = metadata.subject.toLowerCase().startsWith('re:')
+      ? metadata.subject
+      : `Re: ${metadata.subject || draft.subject}`;
 
-  const emailLines = [
-    `To: ${metadata.fromEmail}`,
-    `Subject: =?utf-8?B?${Buffer.from(replySubject).toString('base64')}?=`,
-    `In-Reply-To: ${metadata.originalMessageId}`,
-    `References: ${metadata.originalReferences} ${metadata.originalMessageId}`,
-    `Content-Type: text/plain; charset="UTF-8"`,
-    ``,
-    editedReply || draft.draftReply
-  ];
+    const emailLines = [
+      `To: ${metadata.fromEmail}`,
+      `Subject: =?utf-8?B?${Buffer.from(replySubject).toString('base64')}?=`,
+      `In-Reply-To: ${metadata.originalMessageId}`,
+      `References: ${metadata.originalReferences} ${metadata.originalMessageId}`,
+      `Content-Type: text/plain; charset="UTF-8"`,
+      ``,
+      editedReply || draft.draftReply
+    ];
 
-  const rawEmail = emailLines.join('\n');
-  const encodedEmail = Buffer.from(rawEmail).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    const rawEmail = emailLines.join('\n');
+    const encodedEmail = Buffer.from(rawEmail).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 
-  await gmail.users.messages.send({
-    userId: 'me',
-    requestBody: { raw: encodedEmail, threadId: draft.threadId }
-  });
+    logger?.info('REPLY_SEND_START', 'Sending approved email reply through Gmail', {
+      recipient: logger.protect(metadata.fromEmail),
+      subject: logger.protect(replySubject),
+      replyLength: (editedReply || draft.draftReply || '').length,
+      inReplyTo: metadata.originalMessageId,
+    });
+    const response = await gmail.users.messages.send({
+      userId: 'me',
+      requestBody: { raw: encodedEmail, threadId: draft.threadId }
+    });
+    logger?.info('REPLY_SEND_END', 'Approved email reply sent through Gmail', {
+      durationMs: Date.now() - startedAt,
+      gmailMessageId: response.data?.id,
+      gmailThreadId: response.data?.threadId,
+      labelIds: response.data?.labelIds,
+    });
+    return response.data;
+  } catch (error) {
+    logger?.error('REPLY_SEND_ERROR', 'Failed to send approved email reply through Gmail', error, {
+      durationMs: Date.now() - startedAt,
+    });
+    throw error;
+  }
 };
 
 exports.sendDirectReply = async (userId, threadId, messageId, replyText) => {

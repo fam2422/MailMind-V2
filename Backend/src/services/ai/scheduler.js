@@ -157,32 +157,54 @@ const findAvailableSlots = (
 /**
  * วิเคราะห์ความพร้อมของวันเวลาที่ขอนัดหมายอย่างแม่นยำ 100% (Deterministic Logic)
  */
-const analyzeSlotAvailability = (extractedData, existingEvents, userSetting) => {
+const analyzeSlotAvailability = (extractedData, existingEvents, userSetting, logger) => {
+  const startedAt = Date.now();
   const duration = extractedData?.durationMinutes || 60;
+  const finish = (result, details = {}) => {
+    logger?.info('SCHEDULE_END', 'Calendar availability analysis completed', {
+      durationMs: Date.now() - startedAt,
+      ...result,
+      reason: logger?.protect ? logger.protect(result.reason) : result.reason,
+      ...details,
+    });
+    return result;
+  };
 
+  logger?.info('SCHEDULE_START', 'Analyzing requested appointment slot', {
+    requestedDate: extractedData?.date || null,
+    isTimeSpecified: Boolean(extractedData?.isTimeSpecified),
+    durationMinutes: duration,
+    calendarEventCount: existingEvents?.length || 0,
+    workingHours: {
+      startTime: userSetting?.startTime || '09:00',
+      endTime: userSetting?.endTime || '17:00',
+      workDays: userSetting?.workDays || ['mon', 'tue', 'wed', 'thu', 'fri'],
+      timezone: userSetting?.timezone || 'asia-bangkok',
+    },
+  });
   // 1. กรณีไม่ระบุวันที่ หรือไม่ระบุเวลา
   if (!extractedData?.date || !extractedData?.isTimeSpecified) {
     const baseDate = extractedData?.date ? new Date(extractedData.date) : new Date();
     const suggestions = findAvailableSlots(baseDate, duration, existingEvents, userSetting, 3);
-    return {
+    return finish({
       status: 'TIME_NOT_SPECIFIED',
       actionType: 'RESCHEDULE',
       reason: 'ผู้ส่งไม่ได้ระบุเวลาการนัดหมายที่ชัดเจน',
       suggestedSlots: suggestions.map((s) => s.thaiText),
       isAvailable: false,
-    };
+    });
   }
 
   const requestedStart = new Date(extractedData.date);
   if (isNaN(requestedStart.getTime())) {
     const suggestions = findAvailableSlots(new Date(), duration, existingEvents, userSetting, 3);
-    return {
+    return finish({
       status: 'INVALID_DATE',
       actionType: 'RESCHEDULE',
       reason: 'รูปแบบวันที่ไม่ถูกต้อง',
       suggestedSlots: suggestions.map((s) => s.thaiText),
       isAvailable: false,
-    };
+    });
   }
 
   const requestedEnd = new Date(requestedStart.getTime() + duration * 60 * 1000);
@@ -195,14 +217,14 @@ const analyzeSlotAvailability = (extractedData, existingEvents, userSetting) => 
 
   if (!allowedDays.includes(requestedStart.getDay())) {
     const suggestions = findAvailableSlots(requestedStart, duration, existingEvents, userSetting, 3);
-    return {
+    return finish({
       status: 'OUT_OF_WORK_DAYS',
       actionType: 'RESCHEDULE',
       reason: `เวลานัดหมายตรงกับ${THAI_DAY_NAMES[requestedStart.getDay()]} ซึ่งเป็นวันหยุด`,
       requestedTimeThai,
       suggestedSlots: suggestions.map((s) => s.thaiText),
       isAvailable: false,
-    };
+    });
   }
 
   // 3. ตรวจสอบเวลาทำงาน (Working Hours)
@@ -214,14 +236,14 @@ const analyzeSlotAvailability = (extractedData, existingEvents, userSetting) => 
 
   if (reqStartMin < startWorkMin || reqEndMin > endWorkMin) {
     const suggestions = findAvailableSlots(requestedStart, duration, existingEvents, userSetting, 3);
-    return {
+    return finish({
       status: 'OUT_OF_WORKING_HOURS',
       actionType: 'RESCHEDULE',
       reason: `เวลานัดหมาย (${requestedStart.getHours().toString().padStart(2, '0')}:${requestedStart.getMinutes().toString().padStart(2, '0')} น.) อยู่นอกช่วงเวลาทำงาน (${userSetting?.startTime || '09:00'} - ${userSetting?.endTime || '17:00'} น.)`,
       requestedTimeThai,
       suggestedSlots: suggestions.map((s) => s.thaiText),
       isAvailable: false,
-    };
+    });
   }
 
   // 4. ตรวจสอบการชนกับปฏิทิน (Calendar Conflict)
@@ -235,25 +257,32 @@ const analyzeSlotAvailability = (extractedData, existingEvents, userSetting) => 
   if (conflict) {
     const conflictTitle = conflict.summary || 'กิจกรรมอื่น';
     const suggestions = findAvailableSlots(requestedStart, duration, existingEvents, userSetting, 3);
-    return {
+    return finish({
       status: 'CONFLICT',
       actionType: 'RESCHEDULE',
       reason: `มีนัดหมายอื่นอยู่แล้ว ("${conflictTitle}") ในช่วงเวลาดังกล่าว`,
       requestedTimeThai,
       suggestedSlots: suggestions.map((s) => s.thaiText),
       isAvailable: false,
-    };
+    }, {
+      conflictEvent: {
+        id: conflict.id,
+        summary: logger?.protect ? logger.protect(conflictTitle) : conflictTitle,
+        start: conflict.start,
+        end: conflict.end,
+      },
+    });
   }
 
   // 5. ตารางว่างและตรงตามเงื่อนไขทุกประการ
-  return {
+  return finish({
     status: 'AVAILABLE',
     actionType: 'ACCEPT',
     reason: 'เวลาที่ขอนัดหมายอยู่ในช่วงเวลาทำงานและไม่มีนัดหมายซ้อนทับ',
     requestedTimeThai,
     suggestedSlots: [],
     isAvailable: true,
-  };
+  });
 };
 
 module.exports = {

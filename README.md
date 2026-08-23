@@ -136,7 +136,16 @@ DATABASE_URL="postgresql://mailmind_user:mailmind_password@localhost:5432/mailmi
 # Local AI (Ollama) Settings
 LOCAL_AI_BASE_URL="http://localhost:11434/v1"
 LOCAL_AI_MODEL="llama3.1:8b"
+
+# Console observability (safe defaults)
+LOG_LEVEL=info
+LOG_SENSITIVE_CONTENT=false
 ```
+
+For a short-lived, local end-to-end appointment trace—including email details, AI case and
+parameter summaries, and raw AI diagnostics when parsing fails—set both `LOG_LEVEL=debug`
+and `LOG_SENSITIVE_CONTENT=true`. Turn sensitive logging off after debugging; credentials
+and authorization secrets remain redacted in either mode.
 
 ### Frontend (`Frontend/.env.local`)
 

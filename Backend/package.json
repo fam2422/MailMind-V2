@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "npx prisma db push && node --watch server.js",
     "start": "npx prisma migrate deploy && node server.js",
+    "test": "node --test --test-isolation=none",
     "postinstall": "prisma generate"
   },
   "dependencies": {

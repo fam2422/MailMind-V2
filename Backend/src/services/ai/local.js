@@ -2,6 +2,7 @@
 const { OpenAI } = require('openai');
 const { buildExtractionPrompt, buildDraftPrompt } = require('./prompts');
 const { analyzeSlotAvailability } = require('./scheduler');
+const { createLogger, createTraceId } = require('../../utils/logger');
 
 const getClient = () => {
   const baseURL = process.env.LOCAL_AI_BASE_URL || 'http://localhost:11434/v1';
@@ -15,7 +16,13 @@ const getModel = (modelName) => {
   return modelName || process.env.LOCAL_AI_MODEL || 'llama3.1:latest';
 };
 
-const parseJsonFromLlm = (text) => {
+const compactText = (text, maxLength = 600) => {
+  const normalized = String(text || '').replace(/\s+/g, ' ').trim();
+  if (normalized.length <= maxLength) return normalized;
+  return `${normalized.slice(0, maxLength)}… [truncated ${normalized.length - maxLength} chars]`;
+};
+
+const parseJsonFromLlm = (text, diagnostics = {}) => {
   if (!text) return {};
   let cleaned = text
     .replace(/```json/gi, '')
@@ -28,13 +35,16 @@ const parseJsonFromLlm = (text) => {
   }
 
   try {
+    diagnostics.strategy = 'direct-json';
     return JSON.parse(cleaned);
   } catch (err1) {
     try {
       let fixed = cleaned.replace(/\\([^"\\\/bfnrtu])/g, '\\\\$1');
       fixed = fixed.replace(/[\r\n]/g, '\\n');
+      diagnostics.strategy = 'repaired-json';
       return JSON.parse(fixed);
     } catch (err2) {
+      diagnostics.strategy = 'regex-fallback';
       const actionType = (cleaned.match(/"actionType"\s*:\s*"([^"]+)"/) || [])[1] || 'ACCEPT';
       let reasoning =
         (cleaned.match(/"reasoning"\s*:\s*"([\s\S]*?)"(?=\s*,\s*"draftMessage"|\s*\})/) || [])[1] ||
@@ -111,12 +121,36 @@ exports.testKey = async (apiKey, modelName) => {
   }
 };
 
-exports.extractAppointment = async (apiKey, emailText, modelName) => {
+exports.extractAppointment = async (apiKey, emailText, modelName, observability) => {
+  const logger = observability?.child
+    ? observability.child({}, 'AI')
+    : createLogger('AI', { traceId: createTraceId('ai-extract') });
+  const startedAt = Date.now();
   try {
     const openai = getClient();
     const model = getModel(modelName);
+    const baseURL = process.env.LOCAL_AI_BASE_URL || 'http://localhost:11434/v1';
     const today = new Date().toLocaleDateString('en-US', { dateStyle: 'full' });
     const prompt = buildExtractionPrompt(emailText, today);
+    const systemPrompt =
+      'You are an executive AI assistant that outputs structured JSON data. You MUST strictly reply with valid JSON only.';
+
+    logger.info('EXTRACTION_START', 'Starting appointment extraction', {
+      model,
+      baseURL,
+      temperature: 0.1,
+      inputLength: emailText?.length || 0,
+    });
+    logger.debug('EXTRACTION_INPUT', 'AI case and input parameters', {
+      case: 'APPOINTMENT_EXTRACTION',
+      parameters: {
+        model,
+        currentDate: today,
+        temperature: 0.1,
+        emailTextLength: emailText?.length || 0,
+        emailTextPreview: logger.protect(compactText(emailText, 240)),
+      },
+    });
 
     const response = await openai.chat.completions.create({
       model,
@@ -124,8 +158,7 @@ exports.extractAppointment = async (apiKey, emailText, modelName) => {
       messages: [
         {
           role: 'system',
-          content:
-            'You are an executive AI assistant that outputs structured JSON data. You MUST strictly reply with valid JSON only.',
+          content: systemPrompt,
         },
         { role: 'user', content: prompt },
       ],
@@ -133,9 +166,18 @@ exports.extractAppointment = async (apiKey, emailText, modelName) => {
     });
 
     const rawContent = response.choices[0]?.message?.content || '{}';
-    const parsed = parseJsonFromLlm(rawContent);
+    const parseDiagnostics = {};
+    const parsed = parseJsonFromLlm(rawContent, parseDiagnostics);
+    if (parseDiagnostics.strategy !== 'direct-json') {
+      logger.sensitiveBlock(
+        'EXTRACTION_RAW_RESPONSE_DIAGNOSTIC',
+        'AI EXTRACTION RAW RESPONSE (PARSER DIAGNOSTIC)',
+        compactText(rawContent, 1000),
+        { finishReason: response.choices[0]?.finish_reason }
+      );
+    }
 
-    return {
+    const result = {
       isAppointment: Boolean(parsed.isAppointment),
       title: parsed.title || null,
       date: parsed.date || null,
@@ -144,8 +186,21 @@ exports.extractAppointment = async (apiKey, emailText, modelName) => {
       location: parsed.location || null,
       priority: parsed.priority || 'NORMAL',
     };
+    logger.info('EXTRACTION_END', 'Appointment extraction completed', {
+      durationMs: Date.now() - startedAt,
+      parserStrategy: parseDiagnostics.strategy,
+      usage: response.usage,
+      result: {
+        ...result,
+        title: logger.protect(result.title),
+        location: logger.protect(result.location),
+      },
+    });
+    return result;
   } catch (error) {
-    console.error('Local AI Extraction Error:', error.message);
+    logger.error('EXTRACTION_ERROR', 'Appointment extraction failed', error, {
+      durationMs: Date.now() - startedAt,
+    });
     return { isAppointment: false, priority: 'NORMAL' };
   }
 };
@@ -191,11 +246,25 @@ exports.draftReplyWithCalendar = async (
   extractedData,
   existingEvents,
   userSetting,
-  modelName
+  modelName,
+  observability
 ) => {
+  const logger = observability?.child
+    ? observability.child({}, 'AI')
+    : createLogger('AI', { traceId: createTraceId('ai-draft') });
+  const startedAt = Date.now();
   try {
     const openai = getClient();
     const model = getModel(modelName);
+    const baseURL = process.env.LOCAL_AI_BASE_URL || 'http://localhost:11434/v1';
+
+    logger.info('DRAFT_START', 'Starting deterministic scheduling and AI draft generation', {
+      model,
+      baseURL,
+      temperature: 0.3,
+      isAppointment: Boolean(extractedData?.isAppointment),
+      calendarEventCount: existingEvents?.length || 0,
+    });
 
     // 1. วิเคราะห์ตารางเวลาเฉพาะเมื่อเป็นการนัดหมาย
     let scheduleAnalysis = {
@@ -206,7 +275,7 @@ exports.draftReplyWithCalendar = async (
     };
 
     if (extractedData?.isAppointment) {
-      scheduleAnalysis = analyzeSlotAvailability(extractedData, existingEvents, userSetting);
+      scheduleAnalysis = analyzeSlotAvailability(extractedData, existingEvents, userSetting, logger);
     }
 
     // 2. จัดเตรียม Context สรรพนาม ลายเซ็น และเวลางาน
@@ -244,6 +313,35 @@ exports.draftReplyWithCalendar = async (
       fullSignature,
       workingHours,
     });
+    const systemPrompt =
+      'You are an executive assistant drafting professional email replies. You MUST reply with valid JSON only.';
+
+    const draftCase = extractedData?.isAppointment
+      ? `APPOINTMENT_DRAFT_${scheduleAnalysis.actionType}`
+      : 'GENERAL_REPLY_DRAFT';
+    logger.debug('DRAFT_INPUT', 'AI case and input parameters', {
+      case: draftCase,
+      parameters: {
+        model,
+        temperature: 0.3,
+        pronoun,
+        politeParticle,
+        tone,
+        workingHours,
+        signature: logger.protect(fullSignature),
+        extractedData: {
+          ...extractedData,
+          title: logger.protect(extractedData?.title),
+          location: logger.protect(extractedData?.location),
+        },
+        scheduleAnalysis: {
+          ...scheduleAnalysis,
+          reason: logger.protect(scheduleAnalysis.reason),
+        },
+        emailTextLength: emailText?.length || 0,
+        emailTextPreview: logger.protect(compactText(emailText, 240)),
+      },
+    });
 
     const response = await openai.chat.completions.create({
       model,
@@ -251,8 +349,7 @@ exports.draftReplyWithCalendar = async (
       messages: [
         {
           role: 'system',
-          content:
-            'You are an executive assistant drafting professional email replies. You MUST reply with valid JSON only.',
+          content: systemPrompt,
         },
         { role: 'user', content: prompt },
       ],
@@ -260,18 +357,41 @@ exports.draftReplyWithCalendar = async (
     });
 
     const rawContent = response.choices[0]?.message?.content || '{}';
-    const parsed = parseJsonFromLlm(rawContent);
+    const parseDiagnostics = {};
+    const parsed = parseJsonFromLlm(rawContent, parseDiagnostics);
 
     const cleanDraft = sanitizeDraftText(parsed.draftMessage);
+    if (parseDiagnostics.strategy !== 'direct-json' || !cleanDraft) {
+      logger.sensitiveBlock(
+        'DRAFT_RAW_RESPONSE_DIAGNOSTIC',
+        'AI DRAFT RAW RESPONSE (PARSER/EMPTY-DRAFT DIAGNOSTIC)',
+        compactText(rawContent, 1000),
+        { finishReason: response.choices[0]?.finish_reason }
+      );
+    }
 
-    return {
+    const result = {
       actionType: scheduleAnalysis.actionType, // Strict deterministic decision
       reasoning: scheduleAnalysis.reason || parsed.reasoning || '',
       draftMessage: cleanDraft,
       scheduleAnalysis,
     };
+    logger.info('DRAFT_END', 'AI draft generation completed', {
+      durationMs: Date.now() - startedAt,
+      parserStrategy: parseDiagnostics.strategy,
+      usage: response.usage,
+      actionType: result.actionType,
+      reasoning: logger.protect(result.reasoning),
+      draftLength: cleanDraft.length,
+    });
+    if (cleanDraft) {
+      logger.sensitiveBlock('DRAFT_FINAL_MESSAGE', 'FINAL DRAFT MESSAGE', cleanDraft);
+    }
+    return result;
   } catch (error) {
-    console.error('Local AI Draft Error:', error.message);
+    logger.error('DRAFT_ERROR', 'AI draft generation failed', error, {
+      durationMs: Date.now() - startedAt,
+    });
     return {
       actionType: 'RESCHEDULE',
       reasoning: 'Error generating draft with local AI',

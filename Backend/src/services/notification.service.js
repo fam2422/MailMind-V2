@@ -1,7 +1,18 @@
 // ไฟล์: backend/src/services/notification.service.js
 const { google } = require('googleapis');
+const { createLogger, createTraceId } = require('../utils/logger');
 
-exports.sendPendingDraftNotification = async (oauth2Client, userEmail, emailMetadata, suggestedDate) => {
+exports.sendPendingDraftNotification = async (
+  oauth2Client,
+  userEmail,
+  emailMetadata,
+  suggestedDate,
+  observability
+) => {
+  const logger = observability?.child
+    ? observability.child({}, 'NOTIFICATION')
+    : createLogger('NOTIFICATION', { traceId: createTraceId('notification') });
+  const startedAt = Date.now();
   try {
     const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
 
@@ -62,15 +73,32 @@ exports.sendPendingDraftNotification = async (oauth2Client, userEmail, emailMeta
       .replace(/=+$/, '');
 
     // 4. สั่งส่งอีเมล
-    await gmail.users.messages.send({
+    logger.info('SEND_START', 'Sending pending draft notification', {
+      recipient: logger.protect(userEmail),
+      subject: logger.protect(subject),
+      sourceSubject: logger.protect(emailMetadata.subject),
+      sourceFrom: logger.protect(emailMetadata.from),
+      suggestedDate,
+    });
+    const response = await gmail.users.messages.send({
       userId: 'me',
       requestBody: {
         raw: encodedMessage
       },
     });
 
-    console.log(`[Notification] 📧 Sent PENDING draft alert to ${userEmail}`);
+    logger.info('SEND_END', 'Pending draft notification sent', {
+      durationMs: Date.now() - startedAt,
+      gmailMessageId: response.data?.id,
+      gmailThreadId: response.data?.threadId,
+      recipient: logger.protect(userEmail),
+    });
+    return { success: true, messageId: response.data?.id, threadId: response.data?.threadId };
   } catch (error) {
-    console.error('[Notification] ❌ Error sending email:', error.message);
+    logger.error('SEND_ERROR', 'Failed to send pending draft notification', error, {
+      durationMs: Date.now() - startedAt,
+      recipient: logger.protect(userEmail),
+    });
+    return { success: false, error: error.message };
   }
 };
